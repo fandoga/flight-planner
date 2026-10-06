@@ -1,0 +1,18 @@
+{
+  "name": "flight-planner",
+  "version": "0.1.0",
+  "description": "Флайт-планнер для авиасимуляторов: маршруты по реальным точкам, METAR, выбор ВПП и заходов, расчёт топлива и загрузки",
+  "type": "module",
+  "main": "server/index.js",
+  "scripts": {
+    "setup": "node scripts/fetch-data.js",
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "express": "^4.21.2",
+    "leaflet": "^1.9.4"
+  },
+  "license": "MIT"
+}

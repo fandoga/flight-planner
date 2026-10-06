@@ -1,0 +1,171 @@
+// Карта: монохромная подложка, маршрут, аэропорты, радиосредства, трассы
+import { interpolate, distNm } from './calc.js';
+
+let map, routeLayer, aptLayer, navLayer, awyLayer;
+let wptMarkers = [];
+const layersOn = { airports: true, navaids: false, airways: false };
+let onAirportClick = () => {};
+
+export function initMap(opts = {}) {
+  onAirportClick = opts.onAirportClick || onAirportClick;
+  map = L.map('map', { zoomControl: true, worldCopyJump: true, minZoom: 2, preferCanvas: true, attributionControl: true })
+    .setView([55, 50], 4);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    subdomains: 'abcd', maxZoom: 18,
+    attribution: '&copy; OpenStreetMap &copy; CARTO | Навданные: OurAirports, X-Plane/FlightGear (GPL)',
+  }).addTo(map);
+  awyLayer = L.layerGroup().addTo(map);
+  aptLayer = L.layerGroup().addTo(map);
+  navLayer = L.layerGroup().addTo(map);
+  routeLayer = L.layerGroup().addTo(map);
+  map.on('moveend', refreshOverlays);
+  map.on('zoomend', layoutLabels);
+  document.querySelectorAll('#layerCtrl input').forEach((cb) => {
+    cb.checked = layersOn[cb.dataset.layer];
+    cb.addEventListener('change', () => { layersOn[cb.dataset.layer] = cb.checked; refreshOverlays(); });
+  });
+  refreshOverlays();
+  return map;
+}
+
+let ovrTimer, ovrSeq = 0;
+function refreshOverlays() {
+  clearTimeout(ovrTimer);
+  ovrTimer = setTimeout(loadOverlays, 250);
+}
+
+async function loadOverlays() {
+  const seq = ++ovrSeq;
+  const b = map.getBounds();
+  const z = map.getZoom();
+  const bbox = [b.getSouth(), Math.max(-180, b.getWest()), b.getNorth(), Math.min(180, b.getEast())].map((x) => x.toFixed(3)).join(',');
+  const jobs = [];
+  if (layersOn.airports && z >= 4) jobs.push(fetch(`/api/airports?bbox=${bbox}&z=${z}`).then((r) => r.json()).then((d) => ['apt', d]));
+  if (layersOn.navaids && z >= 6) jobs.push(fetch(`/api/navaids?bbox=${bbox}&z=${z}`).then((r) => r.json()).then((d) => ['nav', d]));
+  if (layersOn.airways && z >= 6) jobs.push(fetch(`/api/airways?bbox=${bbox}`).then((r) => r.json()).then((d) => ['awy', d]));
+  const res = await Promise.all(jobs).catch(() => []);
+  if (seq !== ovrSeq) return;
+  aptLayer.clearLayers(); navLayer.clearLayers(); awyLayer.clearLayers();
+  for (const [kind, data] of res) {
+    if (kind === 'apt') {
+      for (const [icao, lat, lon, rank] of data) {
+        const m = L.circleMarker([lat, lon], {
+          radius: rank >= 3 ? 4 : rank === 2 ? 3 : 2, color: '#64748b', weight: 1, fillColor: rank >= 3 ? '#94a3b8' : '#475569', fillOpacity: 0.9,
+        }).bindTooltip(icao, { className: 'nav-tip', direction: 'top', offset: [0, -4] });
+        m.on('click', () => onAirportClick(icao));
+        aptLayer.addLayer(m);
+      }
+    } else if (kind === 'nav') {
+      for (const [id, lat, lon, type, freq] of data) {
+        const isVor = type === 'VOR' || type === 'DME';
+        const m = L.circleMarker([lat, lon], {
+          radius: isVor ? 3.5 : type === 'NDB' ? 3 : 1.8,
+          color: isVor ? '#38bdf8' : type === 'NDB' ? '#a78bfa' : '#475569', weight: 1, fillOpacity: 0.6,
+        }).bindTooltip(`${id}${freq ? ' ' + freq : ''}`, { className: 'nav-tip', direction: 'top' });
+        navLayer.addLayer(m);
+      }
+    } else if (kind === 'awy') {
+      for (const [la1, lo1, la2, lo2, name, level] of data) {
+        awyLayer.addLayer(L.polyline([[la1, lo1], [la2, lo2]], { color: level === 2 ? '#1e3a8a' : '#334155', weight: 1, opacity: 0.8 }).bindTooltip(name, { className: 'nav-tip', sticky: true }));
+      }
+    }
+  }
+}
+
+/** Ломаная по большим кругам с «развёрткой» долготы через 180° */
+function geodesicLatLngs(pts) {
+  const out = [];
+  let offset = 0;
+  let prevLon = null;
+  for (let i = 0; i < pts.length; i++) {
+    const seg = [];
+    if (i === 0) seg.push(pts[0]);
+    else {
+      const d = distNm(pts[i - 1], pts[i]);
+      const n = Math.min(64, Math.ceil(d / 100));
+      for (let k = 1; k <= n; k++) seg.push(interpolate(pts[i - 1], pts[i], k / n));
+    }
+    for (const p of seg) {
+      let lon = p.lon + offset;
+      if (prevLon != null) {
+        while (lon - prevLon > 180) { lon -= 360; offset -= 360; }
+        while (lon - prevLon < -180) { lon += 360; offset += 360; }
+      }
+      out.push([p.lat, lon]);
+      prevLon = lon;
+    }
+  }
+  return out;
+}
+
+export function drawRoute({ dep, arr, altn, points, log, depRwy, arrRwy }, fit = false) {
+  routeLayer.clearLayers();
+  if (!dep || !arr) return;
+  const all = [dep, ...(points || []), arr];
+  const latlngs = geodesicLatLngs(all);
+  routeLayer.addLayer(L.polyline(latlngs, { color: '#3b82f6', weight: 9, opacity: 0.18, interactive: false }));
+  routeLayer.addLayer(L.polyline(latlngs, { color: '#60a5fa', weight: 2.6, opacity: 0.95, interactive: false }));
+  if (altn) {
+    routeLayer.addLayer(L.polyline(geodesicLatLngs([arr, altn]), { color: '#94a3b8', weight: 1.6, dashArray: '6 6', opacity: 0.8, interactive: false }));
+  }
+  // точки маршрута
+  const lonFix = (lat, lon) => {
+    // взять долготу из развёрнутой линии, чтобы маркеры совпадали с линией
+    let best = lon, bd = 1e9;
+    for (const [la, lo] of latlngs) {
+      const d = Math.abs(la - lat) + Math.abs(((lo - lon) % 360 + 540) % 360 - 180);
+      if (d < bd) { bd = d; best = lo; }
+    }
+    return lon + Math.round((best - lon) / 360) * 360;
+  };
+  wptMarkers = [];
+  (points || []).forEach((p, idx) => {
+    const isProc = p.stage === 'SID' || p.stage === 'STAR';
+    const m = L.circleMarker([p.lat, lonFix(p.lat, p.lon)], {
+      radius: p.type === 'VOR' || p.type === 'NDB' ? 4 : 3, color: isProc ? '#22d3ee' : '#93c5fd', weight: 1.5, fillColor: '#0b1220', fillOpacity: 1,
+    });
+    m.bindPopup(`<b>${p.ident}</b> ${p.type || ''}${p.freq ? ' ' + p.freq : ''}<br>${p.via ? 'через ' + p.via + '<br>' : ''}${p.lat.toFixed(4)}, ${p.lon.toFixed(4)}`);
+    m._label = p.ident;
+    routeLayer.addLayer(m);
+    wptMarkers.push(m);
+  });
+  // T/C, T/D
+  for (const r of log || []) {
+    if (r.type !== 'TOC' && r.type !== 'TOD') continue;
+    routeLayer.addLayer(L.circleMarker([r.lat, lonFix(r.lat, r.lon)], { radius: 4, color: '#fbbf24', weight: 2, fillOpacity: 0 })
+      .bindTooltip(r.ident, { permanent: true, direction: 'left', offset: [-5, 0], className: 'wpt-label' }));
+  }
+  const apt = (a, cls, rw) => {
+    routeLayer.addLayer(L.circleMarker([a.lat, lonFix(a.lat, a.lon)], { radius: 6, color: cls === 'altn' ? '#94a3b8' : '#3b82f6', weight: 2, fillColor: '#0b1220', fillOpacity: 1 })
+      .bindTooltip(a.icao + (rw ? ' ' + rw : ''), { permanent: true, direction: 'top', offset: [0, -8], className: 'apt-label ' + cls }));
+  };
+  apt(dep, '', depRwy);
+  apt(arr, '', arrRwy);
+  if (altn) apt(altn, 'altn');
+  layoutLabels();
+  if (fit) {
+    const b = L.latLngBounds(latlngs);
+    if (altn) b.extend([altn.lat, lonFix(altn.lat, altn.lon)]);
+    const left = document.getElementById('leftPanel').classList.contains('collapsed') ? 40 : 400;
+    const right = document.getElementById('rightPanel').classList.contains('collapsed') ? 40 : 440;
+    map.fitBounds(b, { paddingTopLeft: [left, 90], paddingBottomRight: [right, 50], maxZoom: 9 });
+  }
+}
+
+export function invalidate() { map && map.invalidateSize(); }
+
+/** Подписи точек маршрута без наложений: показываем только те, что не ближе 46 px к уже показанным */
+function layoutLabels() {
+  const shown = [];
+  for (const m of wptMarkers) {
+    const pt = map.latLngToContainerPoint(m.getLatLng());
+    const free = shown.every((q) => Math.abs(q.x - pt.x) > 46 || Math.abs(q.y - pt.y) > 16);
+    if (free) {
+      shown.push(pt);
+      if (!m.getTooltip()) m.bindTooltip(m._label, { permanent: true, direction: 'right', offset: [5, 0], className: 'wpt-label' });
+      m.openTooltip();
+    } else if (m.getTooltip()) {
+      m.unbindTooltip();
+    }
+  }
+}
