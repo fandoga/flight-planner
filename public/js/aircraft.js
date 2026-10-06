@@ -44,6 +44,9 @@ export const AIRCRAFT = [
   A({ id: 'TBM9', name: 'Daher TBM 930', icao: 'TBM9', cat: 'T', wake: 'L', appCat: 'A', taxi: 8, oew: 2100, mzfw: 2730, mtow: 3354, mlw: 3186, maxFuel: 870, maxPax: 5, maxCargo: 100, tas: 320, ceil: 310, opt: 280, ff: 170, toRwy: 2400, ldgRwy: 2200, climbRate: 1800, descRate: 1500, equip: 'SDFGRY/S' }),
   // --- Бизнес / GA ---
   A({ id: 'C25C', name: 'Cessna Citation CJ4', icao: 'C25C', cat: 'J', wake: 'L', appCat: 'B', taxi: 30, oew: 4900, mzfw: 5800, mtow: 7761, mlw: 7103, maxFuel: 2640, maxPax: 9, maxCargo: 200, tas: 450, ceil: 450, opt: 430, ff: 450, toRwy: 3400, ldgRwy: 3000, climbRate: 2500, descRate: 2500, equip: 'SDFGRY/S' }),
+  A({ id: 'C208', name: 'Cessna 208B Grand Caravan', icao: 'C208', cat: 'T', wake: 'L', appCat: 'A', taxi: 10, oew: 2145, mzfw: 3700, mtow: 3995, mlw: 3856, maxFuel: 1009, maxPax: 9, maxCargo: 450, tas: 180, ceil: 250, opt: 120, ff: 175, toRwy: 2420, ldgRwy: 1900, climbRate: 900, descRate: 1000, equip: 'SDFGRY/S' }),
+  A({ id: 'DRCX', name: 'Draco X (STOL, турбовинт.)', icao: 'PZ04', cat: 'T', wake: 'L', appCat: 'A', taxi: 5, oew: 960, mzfw: 1350, mtow: 1500, mlw: 1500, maxFuel: 300, maxPax: 3, maxCargo: 60, tas: 150, ceil: 200, opt: 95, ff: 120, toRwy: 400, ldgRwy: 400, climbRate: 2000, descRate: 1200, equip: 'SDFGRY/S' }),
+  A({ id: 'DA40', name: 'Diamond DA40 NG', icao: 'DA40', cat: 'P', wake: 'L', appCat: 'A', taxi: 2, oew: 900, mzfw: 1280, mtow: 1280, mlw: 1280, maxFuel: 118, maxPax: 3, maxCargo: 40, tas: 135, ceil: 164, opt: 75, ff: 21, toRwy: 1700, ldgRwy: 1300, climbRate: 700, descRate: 500, equip: 'SDFGRY/S' }),
   A({ id: 'C172', name: 'Cessna 172 Skyhawk', icao: 'C172', cat: 'P', wake: 'L', appCat: 'A', taxi: 2, oew: 770, mzfw: 1111, mtow: 1111, mlw: 1111, maxFuel: 145, maxPax: 3, maxCargo: 50, tas: 120, ceil: 140, opt: 65, ff: 28, toRwy: 1700, ldgRwy: 1400, climbRate: 600, descRate: 500, equip: 'SDFGRY/S' }),
 ];
 
@@ -52,4 +55,9 @@ export const BAG_MASS = 20;  // кг, багаж на пассажира
 
 export function findAircraft(id) {
   return AIRCRAFT.find((a) => a.id === id) || AIRCRAFT[2];
+}
+
+/** Тип иллюстрации для ВС */
+export function artType(ac) {
+  return { C208: 'caravan', DRCX: 'draco', DA40: 'da40', C172: 'c172', PC12: 'pc12', TBM9: 'pc12', B350: 'twin', AT76: 'twin', DH8D: 'twin' }[ac.id] || (ac.cat === 'J' ? 'airliner' : 'pc12');
 }

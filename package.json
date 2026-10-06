@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
-    "update-data": "node scripts/fetch-data.js"
+    "update-data": "node scripts/fetch-data.js",
+    "build-tour": "node scripts/build-tour.js"
   },
   "engines": {
     "node": ">=18"
@@ -15,5 +16,12 @@
   "dependencies": {
     "express": "^4.21.2"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@squawk/airport-data": "^0.8.0",
+    "@squawk/airway-data": "^0.6.0",
+    "@squawk/fix-data": "^0.7.0",
+    "@squawk/navaid-data": "^0.7.0",
+    "@squawk/procedure-data": "^0.8.0"
+  }
 }

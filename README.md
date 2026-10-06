@@ -1,4 +1,4 @@
-# Flight Planner — планировщик полётов для авиасимуляторов
+# Vice Skies — флайт-планнер для MSFS
 
 Веб-приложение для планирования полётов в MSFS / X-Plane / P3D: маршрут по реальным
 точкам и трассам, METAR/TAF, автовыбор ВПП и захода, расчёт топлива и загрузки, чарты,
@@ -31,6 +31,19 @@ npm start          # http://localhost:3000  (порт: PORT=8080 npm start)
 - В MSFS: World Map → Load/Save → Load → выбрать `.pln`. SID/STAR/заход выберите в EFB/МФД самолёта
   под ВПП, которую предложил планнер (в бесплатной базе процедур нет).
 
+## Тур «Vice Skies — USA»
+
+Главный экран — готовый тур из 8 рейсов (Сиэтл → Сан-Франциско → Лас-Вегас → Гранд-Каньон → Тусон →
+Чикаго → Лос-Анджелес → Санта-Барбара → Майами) с карточками мест, иллюстрациями самолётов и сценариями.
+
+- Маршруты заранее посчитаны по **актуальным данным FAA** (CIFP + NASR, public domain, пакеты `@squawk/*`):
+  SID → трассы J/Q (лайнеры) или V/T (турбовинтовые) → STAR, для визуального рейса — по VOR вдоль берега.
+- Для **каждой ВПП** заранее подобраны свой SID/STAR и список заходов. На сайте полоса выбирается по METAR,
+  и SID, STAR и заход подстраиваются под неё автоматически.
+- Описание рейсов, самолётов и достопримечательностей — `scripts/tour-spec.js`;
+  пересчитать маршруты: `npm run build-tour` (результат — `public/data/tour.json`).
+- Фото мест подтягиваются из Википедии; пока фото грузится или его нет — показывается SVG-постер в стиле тура.
+
 ## Возможности
 
 - **Карта** — Leaflet + Esri Dark Gray или OpenStreetMap в тёмно-серых тонах (без API-ключей), слои аэропортов, VOR/NDB/точек и трасс,
@@ -59,7 +72,8 @@ npm start          # http://localhost:3000  (порт: PORT=8080 npm start)
 |---|---|---|
 | Аэропорты, ВПП, частоты | [OurAirports](https://ourairports.com/data/) | Public domain |
 | Точки, трассы, VOR/NDB, ILS | X-Plane nav data (Robin A. Peel) из [FlightGear fgdata](https://github.com/FGData/fgdata) | GNU GPL v2 |
-| Актуальный AIRAC + SID/STAR/APP | ваша копия X-Plane 11/12 (`earth_*.dat`, `CIFP/`) | только локально |
+| SID/STAR/заходы, трассы и ВПП США для тура | FAA CIFP и NASR через пакеты [@squawk](https://www.npmjs.com/org/squawk) | public domain / MIT |
+| Фото достопримечательностей | Wikipedia / Wikimedia Commons (REST API) | CC BY-SA и др., с атрибуцией |
 | METAR/TAF | aviationweather.gov, VATSIM, NOAA | открытые |
 | Ветер на высотах | [Open-Meteo](https://open-meteo.com/) | CC BY 4.0, некоммерческое |
 | Чарты | FAA d-TPP, ChartFox, AIP стран | бесплатно |
@@ -70,7 +84,8 @@ npm start          # http://localhost:3000  (порт: PORT=8080 npm start)
 ```
 api/      index.js — вход serverless-функции Vercel
 server/   app.js (API), index.js (локальный запуск), airports.js, navdata.js (fix/nav/awy/CIFP), router.js (A*), weather.js, charts.js
-public/   index.html, css/style.css, js/app.js, map.js, calc.js (профиль/топливо), metar.js, aircraft.js, export.js, plans.js
-scripts/  fetch-data.js — обновление открытых баз в data/db
+public/   index.html, css/style.css, js/app.js, tour.js, art.js (SVG-иллюстрации), photos.js, map.js, calc.js, metar.js, aircraft.js, export.js, plans.js
+public/data/tour.json — посчитанный тур
+scripts/  fetch-data.js — обновление открытых баз в data/db; tour-spec.js + build-tour.js — тур
 data/db/  сжатые базы (OurAirports, X-Plane navdata GPL)
 ```

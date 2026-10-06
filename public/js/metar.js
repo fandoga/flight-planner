@@ -124,7 +124,7 @@ export function rankRunways(airport, metar, opts = {}) {
       // при штиле — по направлению маршрута
       if ((!wind || wind.spd < 4) && prefBearing != null && e.hdg != null) {
         const d = Math.abs(((prefBearing - e.hdg) % 360 + 540) % 360 - 180);
-        score += mode === 'dep' ? (180 - d) / 15 : d / 15;
+        score += (180 - d) / 15;
       }
       out.push({ ident: e.ident, hdg: e.hdg, length: rw.length, width: rw.width, surface: rw.surface, ils: e.ils || [], lat: e.lat, lon: e.lon, elev: e.elev, head: c.head, cross: c.cross, score, ok: score > -100, reason: reasons.join(', ') });
     }

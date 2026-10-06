@@ -1,7 +1,10 @@
 // Карта: монохромная подложка, маршрут, аэропорты, радиосредства, трассы
 import { interpolate, distNm } from './calc.js';
+import { icon } from './art.js';
+import { photoBox, hydratePhotos } from './photos.js';
 
-let map, routeLayer, aptLayer, navLayer, awyLayer;
+let map, routeLayer, aptLayer, navLayer, awyLayer, lmLayer;
+let lmMarkers = [];
 let wptMarkers = [];
 const layersOn = { airports: true, navaids: false, airways: false };
 let onAirportClick = () => {};
@@ -15,6 +18,7 @@ export function initMap(opts = {}) {
   aptLayer = L.layerGroup().addTo(map);
   navLayer = L.layerGroup().addTo(map);
   routeLayer = L.layerGroup().addTo(map);
+  lmLayer = L.layerGroup().addTo(map);
   map.on('moveend', refreshOverlays);
   map.on('zoomend', layoutLabels);
   document.querySelectorAll('#layerCtrl input').forEach((cb) => {
@@ -47,7 +51,7 @@ async function loadOverlays() {
     if (kind === 'apt') {
       for (const [icao, lat, lon, rank] of data) {
         const m = L.circleMarker([lat, lon], {
-          radius: rank >= 3 ? 4 : rank === 2 ? 3 : 2, color: '#64748b', weight: 1, fillColor: rank >= 3 ? '#94a3b8' : '#475569', fillOpacity: 0.9,
+          radius: rank >= 3 ? 4 : rank === 2 ? 3 : 2, color: '#6b5a98', weight: 1, fillColor: rank >= 3 ? '#b4a3e0' : '#5b4a80', fillOpacity: 0.9,
         }).bindTooltip(icao, { className: 'nav-tip', direction: 'top', offset: [0, -4] });
         m.on('click', () => onAirportClick(icao));
         aptLayer.addLayer(m);
@@ -57,13 +61,13 @@ async function loadOverlays() {
         const isVor = type === 'VOR' || type === 'DME';
         const m = L.circleMarker([lat, lon], {
           radius: isVor ? 3.5 : type === 'NDB' ? 3 : 1.8,
-          color: isVor ? '#38bdf8' : type === 'NDB' ? '#a78bfa' : '#475569', weight: 1, fillOpacity: 0.6,
+          color: isVor ? '#5ee7ff' : type === 'NDB' ? '#ffb84d' : '#6b5a98', weight: 1, fillOpacity: 0.6,
         }).bindTooltip(`${id}${freq ? ' ' + freq : ''}`, { className: 'nav-tip', direction: 'top' });
         navLayer.addLayer(m);
       }
     } else if (kind === 'awy') {
       for (const [la1, lo1, la2, lo2, name, level] of data) {
-        awyLayer.addLayer(L.polyline([[la1, lo1], [la2, lo2]], { color: level === 2 ? '#1e3a8a' : '#334155', weight: 1, opacity: 0.8 }).bindTooltip(name, { className: 'nav-tip', sticky: true }));
+        awyLayer.addLayer(L.polyline([[la1, lo1], [la2, lo2]], { color: level === 2 ? '#5b21b6' : '#3b2a5e', weight: 1, opacity: 0.8 }).bindTooltip(name, { className: 'nav-tip', sticky: true }));
       }
     }
   }
@@ -100,10 +104,11 @@ export function drawRoute({ dep, arr, altn, points, log, depRwy, arrRwy }, fit =
   if (!dep || !arr) return;
   const all = [dep, ...(points || []), arr];
   const latlngs = geodesicLatLngs(all);
-  routeLayer.addLayer(L.polyline(latlngs, { color: '#3b82f6', weight: 9, opacity: 0.18, interactive: false }));
-  routeLayer.addLayer(L.polyline(latlngs, { color: '#60a5fa', weight: 2.6, opacity: 0.95, interactive: false }));
+  routeLayer.addLayer(L.polyline(latlngs, { color: '#ff4fa3', weight: 12, opacity: 0.16, interactive: false }));
+  routeLayer.addLayer(L.polyline(latlngs, { color: '#ff7ac0', weight: 5, opacity: 0.35, interactive: false }));
+  routeLayer.addLayer(L.polyline(latlngs, { color: '#ffe1f1', weight: 2, opacity: 0.95, interactive: false }));
   if (altn) {
-    routeLayer.addLayer(L.polyline(geodesicLatLngs([arr, altn]), { color: '#94a3b8', weight: 1.6, dashArray: '6 6', opacity: 0.8, interactive: false }));
+    routeLayer.addLayer(L.polyline(geodesicLatLngs([arr, altn]), { color: '#a78bfa', weight: 1.6, dashArray: '6 6', opacity: 0.8, interactive: false }));
   }
   // точки маршрута
   const lonFix = (lat, lon) => {
@@ -119,7 +124,7 @@ export function drawRoute({ dep, arr, altn, points, log, depRwy, arrRwy }, fit =
   (points || []).forEach((p, idx) => {
     const isProc = p.stage === 'SID' || p.stage === 'STAR';
     const m = L.circleMarker([p.lat, lonFix(p.lat, p.lon)], {
-      radius: p.type === 'VOR' || p.type === 'NDB' ? 4 : 3, color: isProc ? '#22d3ee' : '#93c5fd', weight: 1.5, fillColor: '#0b1220', fillOpacity: 1,
+      radius: p.type === 'VOR' || p.type === 'NDB' ? 4 : 3, color: isProc ? '#5ee7ff' : '#ff7ac0', weight: 1.5, fillColor: '#140828', fillOpacity: 1,
     });
     m.bindPopup(`<b>${p.ident}</b> ${p.type || ''}${p.freq ? ' ' + p.freq : ''}<br>${p.via ? 'через ' + p.via + '<br>' : ''}${p.lat.toFixed(4)}, ${p.lon.toFixed(4)}`);
     m._label = p.ident;
@@ -129,11 +134,11 @@ export function drawRoute({ dep, arr, altn, points, log, depRwy, arrRwy }, fit =
   // T/C, T/D
   for (const r of log || []) {
     if (r.type !== 'TOC' && r.type !== 'TOD') continue;
-    routeLayer.addLayer(L.circleMarker([r.lat, lonFix(r.lat, r.lon)], { radius: 4, color: '#fbbf24', weight: 2, fillOpacity: 0 })
+    routeLayer.addLayer(L.circleMarker([r.lat, lonFix(r.lat, r.lon)], { radius: 4, color: '#ffd166', weight: 2, fillOpacity: 0 })
       .bindTooltip(r.ident, { permanent: true, direction: 'left', offset: [-5, 0], className: 'wpt-label' }));
   }
   const apt = (a, cls, rw) => {
-    routeLayer.addLayer(L.circleMarker([a.lat, lonFix(a.lat, a.lon)], { radius: 6, color: cls === 'altn' ? '#94a3b8' : '#3b82f6', weight: 2, fillColor: '#0b1220', fillOpacity: 1 })
+    routeLayer.addLayer(L.circleMarker([a.lat, lonFix(a.lat, a.lon)], { radius: 6, color: cls === 'altn' ? '#a78bfa' : '#ff4fa3', weight: 2.5, fillColor: '#140828', fillOpacity: 1 })
       .bindTooltip(a.icao + (rw ? ' ' + rw : ''), { permanent: true, direction: 'top', offset: [0, -8], className: 'apt-label ' + cls }));
   };
   apt(dep, '', depRwy);
@@ -215,6 +220,33 @@ function setupBasemaps() {
     ctrl.prepend(sel);
   }
   setBasemap(saved);
+}
+
+/** Достопримечательности рейса тура */
+export function drawLandmarks(list, onOpen = () => {}) {
+  if (!lmLayer) return;
+  const key = list.map((l) => l.wiki).join('|');
+  if (lmLayer._key === key) return;
+  lmLayer._key = key;
+  lmLayer.clearLayers();
+  lmMarkers = list.map((lm, i) => {
+    const m = L.marker([lm.lat, lm.lon], {
+      icon: L.divIcon({ className: 'lm-icon', html: `<div class="lm-pin">${icon('camera')}</div>`, iconSize: [32, 32], iconAnchor: [4, 30], popupAnchor: [12, -28] }),
+      title: lm.name, keyboard: true,
+    });
+    m.bindPopup(`<div class="lm-pop"><div class="ph-wrap">${photoBox(lm, { credit: false })}</div><h5>${lm.name}</h5><p>${lm.text}</p></div>`, { maxWidth: 260 });
+    m.on('popupopen', (e) => hydratePhotos(e.popup.getElement()));
+    m.on('click', () => onOpen(i));
+    lmLayer.addLayer(m);
+    return m;
+  });
+}
+
+export function focusLandmark(i) {
+  const m = lmMarkers[i];
+  if (!m) return;
+  map.flyTo(m.getLatLng(), Math.max(map.getZoom(), 8), { duration: 0.8 });
+  setTimeout(() => m.openPopup(), 850);
 }
 
 export function invalidate() { map && map.invalidateSize(); }

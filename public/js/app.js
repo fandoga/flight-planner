@@ -1,7 +1,10 @@
-import { AIRCRAFT, findAircraft, PAX_MASS, BAG_MASS } from './aircraft.js';
+import { AIRCRAFT, findAircraft, artType, PAX_MASS, BAG_MASS } from './aircraft.js';
+import { aircraftSvg, icon, hydrateIcons } from './art.js';
+import { photoBox, hydratePhotos } from './photos.js';
+import { loadTour, renderTourView, composeTourRoute, tourApproaches, doneSet, toggleDone, CITY, legHours, fmtHours } from './tour.js';
 import { parseMetar, describeMetar, rankRunways } from './metar.js';
 import { computePlan, autoCruiseFl, cruiseTas, bearing, distNm, interpolate, fmtTime } from './calc.js';
-import { initMap, drawRoute } from './map.js';
+import { initMap, drawRoute, drawLandmarks, focusLandmark, invalidate } from './map.js';
 import { exportPlan, plnText } from './export.js';
 import { listPlans, savePlan, deletePlan, getPlan, parsePln, routeString } from './plans.js';
 
@@ -10,8 +13,8 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 
 // ---------------- состояние ----------------
 const DEFAULTS = {
-  dep: 'UUEE', arr: 'ULLI', altn: '', callsign: 'AFL001', etd: '', rules: 'I',
-  acId: 'A20N', level: 'high',
+  dep: 'KSEA', arr: 'KSFO', altn: '', callsign: 'VSK001', etd: '', rules: 'I',
+  acId: 'A21N', livery: 'house', level: 'high', tour: null, view: 'tour',
   depRwy: null, arrRwy: null, sid: null, star: null, approach: null,
   routeText: '', routeMode: 'auto', fixedRoute: null, planId: null,
   ovr: { cruiseFl: null, cruiseSpd: null, windComp: null },
@@ -22,7 +25,7 @@ const DEFAULTS = {
   metarOverride: {},
 };
 let S = load();
-const D = { apt: {}, wx: {}, procs: {}, alternates: [], route: null, plan: null, windAuto: null, windInfo: '', charts: {}, status: null };
+const D = { apt: {}, wx: {}, procs: {}, alternates: [], route: null, plan: null, windAuto: null, windInfo: '', charts: {}, status: null, tour: null };
 
 function load() {
   try {
@@ -60,6 +63,8 @@ async function loadAirport(code) {
   if (!code) return null;
   if (D.apt[code]) return D.apt[code];
   const a = await api(`/api/airport/${code}`);
+  const t = D.tour?.airports?.[a.icao];
+  if (t) { a.runways = t.runways; a.faa = true; }
   D.apt[code] = a;
   if (a.icao !== code) D.apt[a.icao] = a;
   loadWeather(a.icao);
@@ -96,11 +101,20 @@ const altnApt = () => {
   return D.alternates[0] ? (D.apt[D.alternates[0].icao] || D.alternates[0]) : null;
 };
 
+// ---------------- тур ----------------
+const tourLeg = () => (S.tour && D.tour ? D.tour.legs.find((l) => l.id === S.tour.leg) : null);
+const tourSeg = () => {
+  const l = tourLeg();
+  const seg = l?.segments[S.tour.seg || 0];
+  return seg && seg.dep === S.dep && seg.arr === S.arr ? seg : null;
+};
+
 // ---------------- выбор ВПП и заходов ----------------
 function routeBearing() {
   const d = depApt(), a = arrApt();
   if (!d || !a) return null;
-  const pts = D.route?.points || [];
+  const seg = tourSeg();
+  const pts = seg ? seg.enroute : D.route?.points || [];
   const first = pts.find((p) => distNm(d, p) > 15) || a;
   const last = [...pts].reverse().find((p) => distNm(a, p) > 15) || d;
   return { out: bearing(d, first), inb: bearing(last, a) };
@@ -137,6 +151,23 @@ function approachOptions() {
   if (!rw || !apt) return [];
   const procs = D.procs[`${apt.icao}:${rw.ident}`];
   const out = [];
+  const seg = tourSeg();
+  if (seg) {
+    const TYPE = { ILS: 'ILS', RNAV_RNP: 'RNP', RNAV: 'RNAV', LOC: 'LOC', LOC_BC: 'LOC', LDA: 'LOC', VOR: 'VOR', VOR_DME: 'VOR/DME', NDB: 'NDB', NDB_DME: 'NDB/DME', GPS: 'GPS', GLS: 'GLS', VISUAL: 'VISUAL' };
+    for (const p of tourApproaches(seg, rw.ident)) {
+      let type = TYPE[p.type] || 'RNAV';
+      let name = p.name || p.id;
+      if (type === 'ILS') {
+        const l = rw.ils[0];
+        type = `ILS CAT ${l?.cat || 'I'}`;
+        if (l) name += ` — ${l.ident} ${l.freq.toFixed(2)}, курс ${Math.round(l.crs)}°`;
+      }
+      if (type === 'VISUAL') continue;
+      out.push({ id: p.id, name, type, legs: p.legs });
+    }
+    out.push({ id: `VIS${rw.ident}`, name: `Визуальный заход ВПП ${rw.ident}`, type: 'VISUAL' });
+    return out;
+  }
   if (procs?.approaches?.length) {
     for (const p of procs.approaches) out.push({ id: p.name, name: `${p.type || ''} ${p.name}`.trim(), type: p.type || 'RNAV', legs: p.legs });
   } else {
@@ -195,6 +226,7 @@ async function buildRoute(mode = S.routeMode, fit = true) {
     let r;
     if (mode === 'dct') r = { points: [], route: 'DCT', sid: null, star: null, airac: D.status?.airac };
     else if (mode === 'fixed' && S.fixedRoute) r = S.fixedRoute;
+    else if (mode === 'tour' && tourSeg()) { r = composeTourRoute(tourSeg(), depRwy, arrRwy, D.tour.airac); r.key = `${depRwy}/${arrRwy}`; }
     else {
       r = await api('/api/route', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -209,7 +241,7 @@ async function buildRoute(mode = S.routeMode, fit = true) {
     const msgs = [];
     if (r.note) msgs.push(`<span class="warn">${esc(r.note)}</span>`);
     for (const w of r.warnings || []) msgs.push(`<span class="warn">${esc(w)}</span>`);
-    msgs.push(`${r.points.length} точек${r.sid ? ` · SID ${r.sid.name}` : ''}${r.star ? ` · STAR ${r.star.name}` : ''}`);
+    msgs.push(`${r.points.length} точек${r.tour ? ` · трассы и схемы FAA, AIRAC ${esc(D.tour.airac)}` : ''}`);
     $('routeMsg').innerHTML = msgs.join('<br>');
     updateAll(fit);
     fetchWinds();
@@ -304,7 +336,23 @@ function parseSpeed(s) {
 }
 
 // ---------------- отрисовка ----------------
+function syncTourRoute() {
+  const seg = tourSeg();
+  if (S.routeMode !== 'tour' || !seg) return;
+  const key = `${selectedRunway('dep')?.ident}/${selectedRunway('arr')?.ident}`;
+  if (D.route?.tour && D.route.key === key) return;
+  D.route = composeTourRoute(seg, selectedRunway('dep')?.ident, selectedRunway('arr')?.ident, D.tour.airac);
+  D.route.key = key;
+  S.routeText = D.route.route;
+  $('routeText').value = S.routeText;
+  const msgs = [];
+  if (D.route.note) msgs.push(`<span class="warn">${esc(D.route.note)}</span>`);
+  msgs.push(`${D.route.points.length} точек · трассы и схемы FAA, AIRAC ${esc(D.tour.airac)}`);
+  $('routeMsg').innerHTML = msgs.join('<br>');
+}
+
 function updateAll(fit) {
+  syncTourRoute();
   recompute();
   renderSelects();
   renderLeftInfo();
@@ -316,6 +364,8 @@ function updateAll(fit) {
   if (d && a) {
     drawRoute({ dep: d, arr: a, altn: altnApt(), points: D.route?.points || [], log: D.plan?.log, depRwy: selectedRunway('dep')?.ident, arrRwy: selectedRunway('arr')?.ident }, fit);
   }
+  renderTourCard();
+  renderPlaces();
   save();
 }
 
@@ -339,13 +389,15 @@ function renderSelects() {
   const dRw = selectedRunway('dep')?.ident, aRw = selectedRunway('arr')?.ident;
   const dp = depApt() && D.procs[`${depApt().icao}:${dRw || ''}`];
   const ap = arrApt() && D.procs[`${arrApt().icao}:${aRw || ''}`];
-  const sidList = dp?.sid || [], starList = ap?.star || [];
+  let sidList = dp?.sid || [], starList = ap?.star || [];
+  const seg = tourSeg();
+  if (seg && D.route?.tour) { sidList = []; starList = []; }
   setOptions($('sid'), [
-    { value: '', label: D.route?.sid ? `Авто: ${D.route.sid.name}` : dp?.cifp ? 'Авто' : 'В MSFS (нет в базе)' },
+    { value: '', label: D.route?.sid ? `${D.route.sid.name}${D.route.sid.trans ? ' · ' + D.route.sid.trans : ''}` : seg ? (S.rules === 'V' ? 'Визуальный вылет' : 'Радарное векторение') : dp?.cifp ? 'Авто' : 'В MSFS (нет в базе)' },
     ...sidList.map((p) => ({ value: p.name, label: p.name })),
   ], S.sid || '');
   setOptions($('star'), [
-    { value: '', label: D.route?.star ? `Авто: ${D.route.star.name}` : ap?.cifp ? 'Авто' : 'В MSFS (нет в базе)' },
+    { value: '', label: D.route?.star ? `${D.route.star.name}${D.route.star.trans ? ' · ' + D.route.star.trans : ''}` : seg ? (S.rules === 'V' ? 'Визуальный подход' : 'Векторение на заход') : ap?.cifp ? 'Авто' : 'В MSFS (нет в базе)' },
     ...starList.map((p) => ({ value: p.name, label: p.name })),
   ], S.star || '');
   const apps = approachOptions();
@@ -367,12 +419,19 @@ function renderSelects() {
   const dr = selectedRunway('dep');
   if (dr && !dr.ok) msgs.push(`<span class="warn">ВПП ${dr.ident}: ${esc(dr.reason)}</span>`);
   if (dr && dr.length && dr.length < ac.toRwy) msgs.push(`<span class="warn">Длина ВПП ${dr.ident} меньше потребной (${ac.toRwy} ft)</span>`);
-  if (!dp?.cifp) msgs.push('SID/STAR в бесплатной базе нет: после загрузки .pln выберите их в MSFS (EFB / МФД / FMC) под выбранную ВПП.');
+  if (seg && D.route?.tour) {
+    const o = D.route.others || { sid: [], star: [] };
+    const alt = [...o.sid.filter((x) => x !== D.route.sid?.name).map((x) => 'SID ' + x), ...o.star.filter((x) => x !== D.route.star?.name).map((x) => 'STAR ' + x)];
+    msgs.push(`Схемы подобраны под ВПП автоматически (FAA CIFP, AIRAC ${esc(D.tour.airac)}). Смените полосу — SID, STAR и заход пересчитаются.${alt.length ? `<br>Ещё доступны: ${esc(alt.slice(0, 6).join(', '))}` : ''}`);
+  } else if (!dp?.cifp) msgs.push('SID/STAR в бесплатной базе нет: после загрузки .pln выберите их в MSFS (EFB / МФД / FMC) под выбранную ВПП.');
   $('procMsg').innerHTML = msgs.join('<br>');
 }
 
 function renderLeftInfo() {
   const ac = findAircraft(S.acId);
+  const liv = S.tour ? S.livery : ac.cat === 'J' ? 'house' : 'tour';
+  if ($('acArt').dataset.key !== ac.id + liv) { $('acArt').innerHTML = aircraftSvg(artType(ac), liv); $('acArt').dataset.key = ac.id + liv; }
+  renderRouteChips();
   $('acSpec').innerHTML = [
     ['MTOW', fmtW(ac.mtow)], ['MLW', fmtW(ac.mlw)], ['MZFW', fmtW(ac.mzfw)],
     ['OEW', fmtW(ac.oew)], ['Топливо', fmtW(ac.maxFuel)], ['Мест', ac.maxPax],
@@ -393,7 +452,7 @@ function renderLeftInfo() {
   if (document.activeElement !== wc) wc.value = S.ovr.windComp ?? D.windAuto ?? '';
   wc.classList.toggle('overridden', S.ovr.windComp != null);
   $('windHint').textContent = `+ попутный / − встречный, уз. ${D.windInfo || ''}${D.tas ? ` · TAS ${D.tas} kt` : ''}`;
-  if (D.status) $('airacBadge').textContent = `AIRAC ${D.status.airac}${D.status.cifp ? ' + CIFP' : ''}`;
+  $('airacBadge').textContent = D.route?.tour ? `FAA ${D.tour.airac}` : D.status ? `AIRAC ${D.status.airac}${D.status.cifp ? ' + CIFP' : ''}` : '';
 }
 
 function renderSummary() {
@@ -411,7 +470,7 @@ function renderSummary() {
   const chips = [
     ['Маршрут', `${S.dep} → ${S.arr}`],
     ['Дистанция', `${Math.round(p.dist)} nm`],
-    ['Эшелон', `FL${currentFl()}`],
+    ['Эшелон', currentFl() < 180 ? `${(currentFl() * 100).toLocaleString('ru-RU')} ft` : `FL${currentFl()}`],
     ['В воздухе', fmtTime(p.times.trip)],
     ['Блок', fmtTime(block)],
     ['ETA', eta],
@@ -527,13 +586,13 @@ function profileSvg(p) {
   const pts = p.log.map((r) => `${x(r.cum).toFixed(1)},${y(r.alt).toFixed(1)}`).join(' ');
   const grid = [0.25, 0.5, 0.75, 1].map((f) => {
     const a = Math.round(maxAlt * f / 1000) * 1000;
-    return `<line x1="${pad.l}" x2="${w - pad.r}" y1="${y(a)}" y2="${y(a)}" stroke="#1d2a47" stroke-dasharray="2 3"/><text x="${pad.l - 4}" y="${y(a) + 3}" fill="#5a6a8c" font-size="9" text-anchor="end">${a >= 10000 ? 'FL' + a / 100 : a}</text>`;
+    return `<line x1="${pad.l}" x2="${w - pad.r}" y1="${y(a)}" y2="${y(a)}" stroke="rgba(196,167,255,.15)" stroke-dasharray="2 3"/><text x="${pad.l - 4}" y="${y(a) + 3}" fill="#9484c0" font-size="9" text-anchor="end">${a >= 10000 ? 'FL' + a / 100 : a}</text>`;
   }).join('');
   const labels = p.log.filter((r, i) => i === 0 || i === p.log.length - 1 || r.type === 'TOC' || r.type === 'TOD')
-    .map((r) => `<circle cx="${x(r.cum)}" cy="${y(r.alt)}" r="3" fill="${r.type === 'TOC' || r.type === 'TOD' ? '#fbbf24' : '#60a5fa'}"/><text x="${Math.min(w - 30, Math.max(pad.l + 10, x(r.cum)))}" y="${h - 6}" fill="#8796b5" font-size="9" text-anchor="middle">${esc(r.ident)}</text>`).join('');
+    .map((r) => `<circle cx="${x(r.cum)}" cy="${y(r.alt)}" r="3" fill="${r.type === 'TOC' || r.type === 'TOD' ? '#ffd166' : '#ff7ac0'}"/><text x="${Math.min(w - 30, Math.max(pad.l + 10, x(r.cum)))}" y="${h - 6}" fill="#c2b3e6" font-size="9" text-anchor="middle">${esc(r.ident)}</text>`).join('');
   return `<svg class="profile" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
-    <defs><linearGradient id="pg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#3b82f6" stop-opacity=".35"/><stop offset="1" stop-color="#3b82f6" stop-opacity="0"/></linearGradient></defs>
-    ${grid}<polygon points="${x(0)},${y(0)} ${pts} ${x(p.dist)},${y(0)}" fill="url(#pg)"/><polyline points="${pts}" fill="none" stroke="#60a5fa" stroke-width="2"/>${labels}</svg>`;
+    <defs><linearGradient id="pg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#ff4fa3" stop-opacity=".35"/><stop offset="1" stop-color="#ff4fa3" stop-opacity="0"/></linearGradient></defs>
+    ${grid}<polygon points="${x(0)},${y(0)} ${pts} ${x(p.dist)},${y(0)}" fill="url(#pg)"/><polyline points="${pts}" fill="none" stroke="#ff7ac0" stroke-width="2"/>${labels}</svg>`;
 }
 
 // ---------------- чарты ----------------
@@ -574,7 +633,7 @@ async function setAirport(kind, code, rebuild = true) {
   if (kind === 'altn' && !code) { S.altn = ''; updateAll(false); return; }
   try {
     const a = await loadAirport(code);
-    if (kind !== 'altn' && S[kind] !== a.icao) S.planId = null;
+    if (kind !== 'altn' && S[kind] !== a.icao) { S.planId = null; if (S.tour) { S.tour = null; S.ovr.cruiseFl = null; } }
     S[kind] = a.icao;
     input.value = a.icao;
     if (kind === 'dep') { S.depRwy = null; S.sid = null; }
@@ -585,8 +644,9 @@ async function setAirport(kind, code, rebuild = true) {
     D.charts = {};
     await refreshProcs();
     if (rebuild && kind !== 'altn' && depApt() && arrApt()) {
-      S.routeMode = 'auto';
-      await buildRoute('auto');
+      const mode = tourSeg() ? 'tour' : 'auto';
+      S.routeMode = mode;
+      await buildRoute(mode);
     } else updateAll(false);
     if ($('tab-charts').classList.contains('on')) renderCharts();
   } catch (e) {
@@ -655,6 +715,8 @@ function bind() {
     const ac = findAircraft(S.acId);
     S.level = ac.cat === 'J' || ac.ceil >= 250 ? 'high' : 'low';
     document.querySelectorAll('#levelSeg button').forEach((b) => b.classList.toggle('on', b.dataset.level === S.level));
+    const opt = tourLeg()?.aircraft.find((x) => x.id === S.acId);
+    if (S.tour) { S.livery = opt ? opt.livery : (ac.cat === 'J' ? 'house' : 'tour'); const seg = tourSeg(); if (seg?.fl) S.ovr.cruiseFl = seg.fl; }
     if (S.routeMode === 'auto') buildRoute('auto', false); else updateAll(false);
   });
   document.querySelectorAll('#levelSeg button').forEach((b) => b.addEventListener('click', () => {
@@ -788,9 +850,156 @@ function collectExport() {
   return {
     S, ac, plan: D.plan, route: D.route, dep: depApt(), arr: arrApt(), altn: altnApt(),
     fl: currentFl(), tas: D.tas, depRwy: selectedRunway('dep')?.ident, arrRwy: selectedRunway('arr')?.ident,
-    approach: app, airac: D.status?.airac, metar: { dep: metarOf(S.dep)?.raw, arr: metarOf(S.arr)?.raw, altn: altnApt() ? metarOf(altnApt().icao)?.raw : null },
+    approach: app, airac: D.route?.tour ? D.tour.airac.replace(/-/g, '').slice(2, 6) : D.status?.airac, metar: { dep: metarOf(S.dep)?.raw, arr: metarOf(S.arr)?.raw, altn: altnApt() ? metarOf(altnApt().icao)?.raw : null },
     units: S.units,
   };
+}
+
+// ---------------- тур: виды, карточки, места ----------------
+function setView(v, { push = true } = {}) {
+  S.view = v;
+  document.body.classList.toggle('view-tour', v === 'tour');
+  document.body.classList.toggle('view-planner', v === 'planner');
+  document.querySelectorAll('.nav [data-nav]').forEach((b) => b.classList.toggle('on', b.dataset.nav === v));
+  if (v === 'tour' && D.tour) renderTourView(D.tour);
+  if (v === 'planner') setTimeout(() => { invalidate(); if (depApt() && arrApt()) updateAll(true); }, 60);
+  if (push) history.replaceState(null, '', v === 'tour' ? '#tour' : S.tour ? `#leg-${S.tour.leg}` : '#planner');
+  save();
+}
+
+async function startTourLeg(legId, segIdx = 0, acIdx = 0) {
+  const leg = D.tour?.legs.find((l) => l.id === +legId);
+  if (!leg) return;
+  const seg = leg.segments[segIdx] || leg.segments[0];
+  const opt = leg.aircraft[acIdx] || leg.aircraft[0];
+  const ac = findAircraft(opt.id);
+  Object.assign(S, {
+    dep: seg.dep, arr: seg.arr, altn: '', rules: seg.rules || 'I',
+    acId: opt.id, livery: opt.livery, level: seg.level === 'high' ? 'high' : 'low',
+    tour: { leg: leg.id, seg: segIdx, ac: acIdx },
+    depRwy: null, arrRwy: null, sid: null, star: null, approach: null,
+    routeMode: 'tour', fixedRoute: null, planId: null, routeText: seg.route,
+    callsign: { southwest: 'SWA', american: 'AAL', united: 'UAL' }[opt.livery] ? `${{ southwest: 'SWA', american: 'AAL', united: 'UAL' }[opt.livery]}${100 + leg.id * 7}` : `VSK${String(leg.id).padStart(3, '0')}`,
+    ovr: { cruiseFl: seg.fl || null, cruiseSpd: null, windComp: null },
+    load: { pax: null, bagsPerPax: S.load.bagsPerPax, cargo: 0 },
+    fuel: { ...DEFAULTS.fuel },
+  });
+  if (ac.cat !== 'J') S.load.pax = Math.min(ac.maxPax, 2);
+  D.alternates = [];
+  D.charts = {};
+  D.route = null;
+  setView('planner');
+  // вкладка «Места» — первой
+  document.querySelectorAll('#tabs button').forEach((x) => x.classList.toggle('on', x.dataset.tab === 'places'));
+  document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('on', x.id === 'tab-places'));
+  await loadFromState(true);
+}
+
+function renderRouteChips() {
+  const r = D.route;
+  const el = $('routeChips');
+  if (!r || !depApt()) { el.innerHTML = ''; return; }
+  const procs = new Set([r.sid?.name, r.star?.name].filter(Boolean));
+  const vias = new Set((r.points || []).map((p) => p.via));
+  const toks = (r.route || '').split(/\s+/).filter(Boolean);
+  el.innerHTML = [`<span class="rc proc" title="Вылет">${esc(S.dep)}${selectedRunway('dep') ? ' · ' + selectedRunway('dep').ident : ''}</span>`,
+    ...toks.map((t) => `<span class="rc ${procs.has(t) ? 'proc' : t === 'DCT' ? 'dct' : vias.has(t) && /\d/.test(t) ? 'awy' : 'fix'}">${esc(t)}</span>`),
+    `<span class="rc proc" title="Прилёт">${esc(S.arr)}${selectedRunway('arr') ? ' · ' + selectedRunway('arr').ident : ''}</span>`].join('');
+}
+
+function renderTourCard() {
+  const el = $('tourCard');
+  const leg = tourLeg();
+  const tabBtn = $('tabBtnPlaces');
+  if (!leg) {
+    el.hidden = true; tabBtn.hidden = true;
+    if (tabBtn.classList.contains('on')) document.querySelector('#tabs [data-tab="wx"]').click();
+    drawLandmarks([]);
+    return;
+  }
+  tabBtn.hidden = false;
+  const segIdx = S.tour.seg || 0;
+  const seg = leg.segments[segIdx];
+  const onRoute = !!tourSeg();
+  const done = doneSet().has(leg.id);
+  const key = `${leg.id}:${segIdx}:${S.acId}:${S.livery}:${onRoute}:${S.routeMode}:${done}`;
+  if (el.dataset.key === key) return;
+  el.dataset.key = key;
+  el.hidden = false;
+  const cover = leg.landmarks[leg.landmarks.length - 1];
+  el.innerHTML = `
+    <div class="tc-img">${photoBox(cover)}</div>
+    <div class="tc-body">
+      <div class="tc-kicker">${icon('flag')}Рейс ${leg.id} из ${D.tour.legs.length}${leg.finale ? ' · финал' : ''}</div>
+      <div class="tc-title">${esc(leg.title)}</div>
+      <p class="tc-text">${esc(leg.blurb)}</p>
+      ${leg.segments.length > 1 ? `<div class="seg">${leg.segments.map((sg, i) => `<button data-tour-seg="${i}" class="${i === segIdx ? 'on' : ''}">${i ? 'Обратно' : 'Туда'}: ${sg.dep} → ${sg.arr}</button>`).join('')}</div>` : ''}
+      <div class="ac-pick">${leg.aircraft.map((a, i) => `<button data-tour-ac="${i}" class="${a.id === S.acId && a.livery === S.livery ? 'on' : ''}" aria-pressed="${a.id === S.acId && a.livery === S.livery}">${aircraftSvg(artType(findAircraft(a.id)), a.livery)}${esc(a.label)}</button>`).join('')}</div>
+      <div class="tc-tip">${icon('sparkle')}<span>${esc(leg.tip)}</span></div>
+      ${!onRoute || S.routeMode !== 'tour' ? `<div class="row-btns"><button class="btn primary" data-tour-restore="1">${icon('route')}Вернуть маршрут тура</button></div>` : ''}
+      <div class="row-btns">
+        <button class="btn" data-nav="tour">${icon('back')}Все рейсы</button>
+        <button class="btn ${done ? '' : 'grad'}" data-tour-done="${leg.id}">${icon('check')}${done ? 'Пройден' : 'Отметить пройденным'}</button>
+      </div>
+    </div>`;
+  hydratePhotos(el);
+  drawLandmarks(leg.landmarks, (i) => showPlace(i));
+}
+
+function renderPlaces() {
+  const el = $('tab-places');
+  const leg = tourLeg();
+  if (!leg) { el.innerHTML = ''; el.dataset.key = ''; return; }
+  if (el.dataset.key === String(leg.id)) return;
+  el.dataset.key = String(leg.id);
+  el.innerHTML = `<p class="places-intro">Что посмотреть по пути ${leg.roundTrip ? `${CITY[leg.segments[0].dep]} ⇄ ${CITY[leg.segments[0].arr]}` : `${CITY[leg.segments[0].dep]} → ${CITY[leg.segments[0].arr]}`}. Сценарии: ${leg.scenery.map(esc).join(', ')}.</p>` +
+    leg.landmarks.map((m, i) => `<article class="place" id="place-${i}">
+      <div class="pl-img">${photoBox(m)}</div>
+      <div class="pl-body"><h4>${esc(m.name)}</h4><p>${esc(m.text)}</p>
+        <div class="pl-actions"><button class="btn" data-place-map="${i}">${icon('pin')}На карте</button>
+        <a class="btn ghost" href="https://en.wikipedia.org/wiki/${encodeURIComponent(m.wiki)}" target="_blank" rel="noopener">Википедия</a></div></div>
+    </article>`).join('');
+  hydratePhotos(el);
+}
+
+function showPlace(i) {
+  if ($('rightPanel').classList.contains('collapsed')) $('rightPanel').classList.remove('collapsed');
+  document.querySelector('#tabs [data-tab="places"]').click();
+  $('place-' + i)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function bindTour() {
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-start-leg], [data-nav], [data-tour-seg], [data-tour-ac], [data-tour-done], [data-tour-restore], [data-place-map]');
+    if (!t) return;
+    if (t.dataset.startLeg) { e.preventDefault(); startTourLeg(+t.dataset.startLeg); }
+    else if (t.dataset.nav) { e.preventDefault(); setView(t.dataset.nav); }
+    else if (t.dataset.tourSeg) startTourLeg(S.tour.leg, +t.dataset.tourSeg, S.tour.ac || 0);
+    else if (t.dataset.tourAc) {
+      const leg = tourLeg();
+      const opt = leg.aircraft[+t.dataset.tourAc];
+      S.tour.ac = +t.dataset.tourAc;
+      S.livery = opt.livery;
+      $('aircraft').value = opt.id;
+      $('aircraft').dispatchEvent(new Event('change'));
+    } else if (t.dataset.tourDone) { const v = toggleDone(+t.dataset.tourDone); toast(v ? 'Рейс отмечен пройденным' : 'Отметка снята'); renderTourCard(); }
+    else if (t.dataset.tourRestore) startTourLeg(S.tour.leg, S.tour.seg || 0, S.tour.ac || 0);
+    else if (t.dataset.placeMap) focusLandmark(+t.dataset.placeMap);
+  });
+  window.addEventListener('hashchange', () => routeFromHash());
+}
+
+function routeFromHash() {
+  const h = location.hash;
+  const m = h.match(/^#leg-(\d+)/);
+  if (m && D.tour) {
+    if (!S.tour || S.tour.leg !== +m[1] || S.view !== 'planner') { startTourLeg(+m[1]); return 'leg'; }
+    setView('planner', { push: false });
+    return true;
+  }
+  if (h === '#planner') { setView('planner', { push: false }); return true; }
+  if (h === '#tour') { setView('tour', { push: false }); return true; }
+  return false;
 }
 
 // ---------------- старт ----------------
@@ -808,11 +1017,19 @@ async function start() {
     if (!S.dep) setAirport('dep', icao); else setAirport('arr', icao);
   } });
   bind();
+  bindTour();
+  hydrateIcons();
   if (innerWidth < 760) $('rightPanel').classList.add('collapsed');
-  D.status = await api('/api/status').catch(() => null);
-  renderLeftInfo();
+  const [status, tour] = await Promise.all([api('/api/status').catch(() => null), loadTour().catch(() => null)]);
+  D.status = status;
+  D.tour = tour;
+  if (S.tour && !tourLeg()) S.tour = null;
+  if (S.routeMode === 'tour' && !S.tour) S.routeMode = 'auto';
   renderPlans();
-  await loadFromState(false);
+  const routed = routeFromHash();
+  if (!routed) setView(S.view === 'planner' ? 'planner' : 'tour');
+  renderLeftInfo();
+  if (routed !== 'leg') await loadFromState(false);
 }
 
 /** Загрузить аэропорты/процедуры/маршрут по текущему состоянию S */

@@ -3,59 +3,74 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Flight Planner</title>
-  <meta name="description" content="Флайт-планнер для авиасимуляторов: маршрут по реальным точкам, METAR, выбор ВПП и заходов, топливо и загрузка">
+  <title>Vice Skies Planner</title>
+  <meta name="description" content="Флайт-планнер для MSFS: тур по США с готовыми маршрутами, SID/STAR, погодой, выбором полос, топливом и экспортом .pln">
+  <meta name="theme-color" content="#0d0620">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="/css/style.css">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%233b82f6' d='M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z'/%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23ff4fa3'/%3E%3Cstop offset='1' stop-color='%23ffb84d'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ccircle cx='12' cy='12' r='11' fill='%230d0620'/%3E%3Cpath fill='url(%23g)' d='M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z'/%3E%3C/svg%3E">
 </head>
-<body>
-  <div id="map"></div>
+<body class="view-tour">
+  <div id="map" aria-label="Карта маршрута"></div>
+  <div class="map-tint" aria-hidden="true"></div>
 
   <header class="topbar">
-    <div class="brand">
-      <svg viewBox="0 0 24 24" class="brand-ico"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></svg>
-      <span>FLIGHT<b>PLANNER</b></span>
-    </div>
-    <div class="chips" id="summary"></div>
+    <a class="brand" href="#tour" data-nav="tour" aria-label="Vice Skies — на главную">
+      <span class="brand-mark"><i data-icon="plane"></i></span>
+      <span class="brand-text"><b>VICE</b><b class="g">SKIES</b><small>flight planner</small></span>
+    </a>
+    <nav class="nav" aria-label="Разделы">
+      <button data-nav="tour" class="on"><i data-icon="flag"></i><span>Тур по США</span></button>
+      <button data-nav="planner"><i data-icon="map"></i><span>Планировщик</span></button>
+    </nav>
+    <div class="chips" id="summary" aria-live="polite"></div>
     <div class="top-actions">
-      <button class="btn primary sm" id="savePlanBtn" title="Сохранить план (и скачать .pln для MSFS)">Сохранить</button>
+      <button class="btn grad" id="savePlanBtn" title="Сохранить план и скачать .pln для MSFS"><i data-icon="save"></i><span>Сохранить</span></button>
       <div class="dropdown">
-        <button class="btn ghost" id="exportBtn">Экспорт ▾</button>
-        <div class="dropdown-menu" id="exportMenu">
-          <button data-export="copy">Скопировать маршрут</button>
-          <button data-export="fpl">План полёта ICAO (.txt)</button>
-          <button data-export="fms">X-Plane 11/12 (.fms)</button>
-          <button data-export="pln">MSFS 2020/2024 (.pln)</button>
-          <button data-export="import">Импорт .pln из MSFS…</button>
-          <button data-export="ofp">OFP — брифинг (.txt)</button>
+        <button class="btn ghost" id="exportBtn" aria-haspopup="true"><i data-icon="download"></i><span>Экспорт</span></button>
+        <div class="dropdown-menu" id="exportMenu" role="menu">
+          <button data-export="pln" role="menuitem">MSFS 2020/2024 (.pln)</button>
+          <button data-export="import" role="menuitem">Импорт .pln из MSFS…</button>
+          <button data-export="copy" role="menuitem">Скопировать маршрут</button>
+          <button data-export="fpl" role="menuitem">План полёта ICAO (.txt)</button>
+          <button data-export="fms" role="menuitem">X-Plane (.fms)</button>
+          <button data-export="ofp" role="menuitem">Брифинг OFP (.txt)</button>
         </div>
       </div>
-      <select id="units" class="select-sm" title="Единицы массы">
+      <select id="units" class="select-sm" aria-label="Единицы массы">
         <option value="kg">кг</option>
         <option value="lb">lb</option>
       </select>
     </div>
   </header>
 
-  <!-- ЛЕВАЯ ПАНЕЛЬ: построение полёта -->
-  <aside class="panel left" id="leftPanel">
-    <button class="collapse" data-collapse="leftPanel" title="Свернуть">‹</button>
+  <!-- ======================= ТУР ======================= -->
+  <main class="tour-view" id="viewTour">
+    <section class="tour-hero" id="tourHero"></section>
+    <section class="tour-grid" id="tourGrid" aria-label="Рейсы тура"></section>
+    <footer class="tour-foot" id="tourFoot"></footer>
+  </main>
+
+  <!-- ======================= ПЛАНИРОВЩИК ======================= -->
+  <aside class="panel left" id="leftPanel" aria-label="Параметры рейса">
+    <button class="collapse" data-collapse="leftPanel" aria-label="Свернуть панель"><i data-icon="back"></i></button>
     <div class="panel-scroll">
+      <section class="card tour-card" id="tourCard" hidden></section>
+
       <section class="card">
         <h3>Рейс</h3>
         <div class="grid2">
           <label class="field">
-            <span>Вылет (ICAO)</span>
-            <input id="dep" class="icao" maxlength="4" placeholder="UUEE" autocomplete="off">
+            <span>Откуда</span>
+            <input id="dep" class="icao" maxlength="4" placeholder="KSEA" autocomplete="off" spellcheck="false">
             <div class="ac-list" data-for="dep"></div>
           </label>
           <label class="field">
-            <span>Прилёт (ICAO)</span>
-            <input id="arr" class="icao" maxlength="4" placeholder="ULLI" autocomplete="off">
+            <span>Куда</span>
+            <input id="arr" class="icao" maxlength="4" placeholder="KSFO" autocomplete="off" spellcheck="false">
             <div class="ac-list" data-for="arr"></div>
           </label>
         </div>
@@ -63,17 +78,17 @@
         <div class="grid2">
           <label class="field">
             <span>Запасной</span>
-            <input id="altn" class="icao" maxlength="4" placeholder="авто" autocomplete="off">
+            <input id="altn" class="icao" maxlength="4" placeholder="авто" autocomplete="off" spellcheck="false">
             <div class="ac-list" data-for="altn"></div>
           </label>
           <label class="field">
             <span>Позывной</span>
-            <input id="callsign" maxlength="8" placeholder="AFL123" autocomplete="off">
+            <input id="callsign" maxlength="8" placeholder="AAL123" autocomplete="off" spellcheck="false">
           </label>
         </div>
         <div class="grid2">
           <label class="field">
-            <span>Вылет (UTC)</span>
+            <span>Вылет, UTC</span>
             <input id="etd" type="time">
           </label>
           <label class="field">
@@ -84,7 +99,8 @@
       </section>
 
       <section class="card">
-        <h3>Воздушное судно</h3>
+        <h3>Самолёт</h3>
+        <div class="ac-art" id="acArt"></div>
         <label class="field">
           <span>Тип</span>
           <select id="aircraft"></select>
@@ -94,26 +110,28 @@
 
       <section class="card">
         <h3>Маршрут <span class="badge" id="airacBadge"></span></h3>
-        <div class="seg" id="levelSeg">
-          <button data-level="high" class="on">Верхние трассы</button>
-          <button data-level="low">Нижние</button>
-        </div>
-        <div class="row-btns">
-          <button class="btn primary" id="buildRoute">Построить по трассам</button>
-          <button class="btn" id="directRoute" title="Прямой маршрут">DCT</button>
-        </div>
-        <label class="field">
-          <span>Строка маршрута (можно редактировать)</span>
-          <textarea id="routeText" rows="3" spellcheck="false" placeholder="SID FIX AWY FIX ... STAR"></textarea>
-        </label>
-        <div class="row-btns">
-          <button class="btn" id="applyRoute">Применить строку</button>
-        </div>
+        <div class="route-chips" id="routeChips"></div>
         <div class="msg" id="routeMsg"></div>
+        <details class="adv" id="routeAdv">
+          <summary>Построить заново или изменить вручную</summary>
+          <div class="seg" id="levelSeg" role="group" aria-label="Тип трасс">
+            <button data-level="high" class="on">Верхние трассы</button>
+            <button data-level="low">Нижние</button>
+          </div>
+          <div class="row-btns">
+            <button class="btn primary" id="buildRoute"><i data-icon="route"></i>Построить по трассам</button>
+            <button class="btn" id="directRoute" title="Прямой маршрут">DCT</button>
+          </div>
+          <label class="field">
+            <span>Строка маршрута</span>
+            <textarea id="routeText" rows="3" spellcheck="false" placeholder="SID FIX AWY FIX … STAR"></textarea>
+          </label>
+          <div class="row-btns"><button class="btn" id="applyRoute">Применить строку</button></div>
+        </details>
       </section>
 
       <section class="card">
-        <h3>ВПП и процедуры</h3>
+        <h3>Полосы и схемы</h3>
         <div class="subhead">Вылет <span id="depWindInfo" class="muted"></span></div>
         <div class="grid2">
           <label class="field"><span>ВПП</span><select id="depRwy"></select></label>
@@ -129,49 +147,53 @@
       </section>
 
       <section class="card">
-        <h3>Мои планы <span class="badge" id="plansCount"></span></h3>
-        <div class="row-btns">
-          <button class="btn" id="savePlan2">Сохранить текущий</button>
-          <button class="btn" id="importPln">Импорт .pln</button>
-          <input type="file" id="plnFile" accept=".pln,.xml" hidden>
+        <h3>Высота и скорость</h3>
+        <div class="grid2">
+          <label class="field"><span>Эшелон (FL)</span>
+            <div class="ovr"><input id="cruiseFl" type="number" step="10" min="10" max="510"><button class="reset" data-reset="cruiseFl" title="Вернуть авто" aria-label="Вернуть авто"><i data-icon="reset"></i></button></div>
+          </label>
+          <label class="field"><span>Скорость</span>
+            <div class="ovr"><input id="cruiseSpd" type="text"><button class="reset" data-reset="cruiseSpd" title="Вернуть авто" aria-label="Вернуть авто"><i data-icon="reset"></i></button></div>
+          </label>
         </div>
-        <div id="plansList"></div>
-        <div class="hint">Планы хранятся в этом браузере. Кнопка «.pln» скачивает файл для MSFS 2020/2024: World Map → Load/Save → Load.</div>
+        <details class="adv">
+          <summary>Тонкая настройка</summary>
+          <div class="grid2">
+            <label class="field"><span>Ветер на эшелоне, уз</span>
+              <div class="ovr"><input id="windComp" type="number" step="1" placeholder="0"><button class="reset" data-reset="windComp" title="Вернуть авто" aria-label="Вернуть авто"><i data-icon="reset"></i></button></div>
+            </label>
+            <label class="field"><span>Отклонение от ISA, °C</span>
+              <input id="isaDev" type="number" step="1" value="0">
+            </label>
+          </div>
+        </details>
+        <div class="hint" id="windHint"></div>
       </section>
 
       <section class="card">
-        <h3>Профиль полёта</h3>
-        <div class="grid2">
-          <label class="field"><span>Эшелон (FL)</span>
-            <div class="ovr"><input id="cruiseFl" type="number" step="10" min="10" max="510"><button class="reset" data-reset="cruiseFl" title="Авто">↺</button></div>
-          </label>
-          <label class="field"><span>Крейсерская скорость</span>
-            <div class="ovr"><input id="cruiseSpd" type="text"><button class="reset" data-reset="cruiseSpd" title="Авто">↺</button></div>
-          </label>
+        <h3>Мои планы <span class="badge" id="plansCount"></span></h3>
+        <div class="row-btns">
+          <button class="btn" id="savePlan2"><i data-icon="save"></i>Сохранить</button>
+          <button class="btn" id="importPln"><i data-icon="upload"></i>Импорт .pln</button>
+          <input type="file" id="plnFile" accept=".pln,.xml" hidden>
         </div>
-        <div class="grid2">
-          <label class="field"><span>Ветер на эшелоне</span>
-            <div class="ovr"><input id="windComp" type="number" step="1" placeholder="0"><button class="reset" data-reset="windComp" title="Авто">↺</button></div>
-          </label>
-          <label class="field"><span>ISA отклонение, °C</span>
-            <input id="isaDev" type="number" step="1" value="0">
-          </label>
-        </div>
-        <div class="hint" id="windHint">+ попутный / − встречный, уз</div>
+        <div id="plansList"></div>
+        <div class="hint">Планы хранятся в этом браузере. «.pln» — файл для MSFS 2020/2024: World Map → Load/Save → Load.</div>
       </section>
     </div>
   </aside>
 
-  <!-- ПРАВАЯ ПАНЕЛЬ: погода, топливо, навлог, чарты -->
-  <aside class="panel right" id="rightPanel">
-    <button class="collapse" data-collapse="rightPanel" title="Свернуть">›</button>
-    <nav class="tabs" id="tabs">
-      <button data-tab="wx" class="on">Погода</button>
-      <button data-tab="fuel">Топливо</button>
-      <button data-tab="log">Навлог</button>
-      <button data-tab="charts">Чарты</button>
+  <aside class="panel right" id="rightPanel" aria-label="Погода, топливо и навигация">
+    <button class="collapse" data-collapse="rightPanel" aria-label="Свернуть панель"><i data-icon="back"></i></button>
+    <nav class="tabs" id="tabs" role="tablist">
+      <button data-tab="places" id="tabBtnPlaces" hidden><i data-icon="camera"></i>Места</button>
+      <button data-tab="wx" class="on"><i data-icon="cloud"></i>Погода</button>
+      <button data-tab="fuel"><i data-icon="fuel"></i>Топливо</button>
+      <button data-tab="log"><i data-icon="list"></i>Навлог</button>
+      <button data-tab="charts"><i data-icon="file"></i>Чарты</button>
     </nav>
     <div class="panel-scroll">
+      <div class="tab" id="tab-places"></div>
       <div class="tab on" id="tab-wx"></div>
       <div class="tab" id="tab-fuel"></div>
       <div class="tab" id="tab-log"></div>
@@ -181,18 +203,18 @@
 
   <div class="map-ctrl" id="layerCtrl">
     <label><input type="checkbox" data-layer="airports" checked> Аэропорты</label>
-    <label><input type="checkbox" data-layer="navaids"> VOR/NDB/точки</label>
+    <label><input type="checkbox" data-layer="navaids"> Радиомаяки и точки</label>
     <label><input type="checkbox" data-layer="airways"> Трассы</label>
   </div>
 
   <div class="modal" id="chartModal" hidden>
-    <div class="modal-box">
-      <div class="modal-head"><span id="chartTitle"></span><a id="chartOpen" target="_blank" rel="noopener" class="btn ghost">Открыть в новой вкладке</a><button class="btn ghost" id="chartClose">✕</button></div>
+    <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="chartTitle">
+      <div class="modal-head"><span id="chartTitle"></span><a id="chartOpen" target="_blank" rel="noopener" class="btn ghost">Открыть в новой вкладке</a><button class="btn ghost" id="chartClose" aria-label="Закрыть"><i data-icon="x"></i></button></div>
       <iframe id="chartFrame" title="Чарт"></iframe>
     </div>
   </div>
 
-  <div class="toast" id="toast"></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="/vendor/leaflet/leaflet.js"></script>
   <script type="module" src="/js/app.js"></script>

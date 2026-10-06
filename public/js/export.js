@@ -73,12 +73,25 @@ function dms(v, pos, neg) {
 const worldPos = (p, alt) => `${dms(p.lat, 'N', 'S')},${dms(p.lon, 'E', 'W')},${alt >= 0 ? '+' : '-'}${String(Math.abs(Math.round(alt))).padStart(6, '0')}.00`;
 const xmlEsc = (s) => String(s).replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
 
+function rwyTags(rwy) {
+  const d = { L: 'LEFT', R: 'RIGHT', C: 'CENTER' }[rwy.slice(-1)];
+  return `      <RunwayNumberFP>${parseInt(rwy, 10)}</RunwayNumberFP>\n${d ? `      <RunwayDesignatorFP>${d}</RunwayDesignatorFP>\n` : ''}`;
+}
+
 export function plnText(x) {
   const pts = (x.route?.points || []);
   const wpType = (p) => p.type === 'VOR' || p.type === 'DME' ? 'VOR' : p.type === 'NDB' ? 'NDB' : p.type === 'LL' ? 'User' : 'Intersection';
   const wps = [
     `    <ATCWaypoint id="${x.dep.icao}">\n      <ATCWaypointType>Airport</ATCWaypointType>\n      <WorldPosition>${worldPos(x.dep, x.dep.elev)}</WorldPosition>\n${x.depRwy ? `      <RunwayNumberFP>${parseInt(x.depRwy, 10)}</RunwayNumberFP>\n${/[LRC]$/.test(x.depRwy) ? `      <RunwayDesignatorFP>${{ L: 'LEFT', R: 'RIGHT', C: 'CENTER' }[x.depRwy.slice(-1)]}</RunwayDesignatorFP>\n` : ''}` : ''}      <ICAO><ICAOIdent>${x.dep.icao}</ICAOIdent></ICAO>\n    </ATCWaypoint>`,
-    ...pts.map((p) => `    <ATCWaypoint id="${xmlEsc(p.ident)}">\n      <ATCWaypointType>${wpType(p)}</ATCWaypointType>\n      <WorldPosition>${worldPos(p, x.fl * 100)}</WorldPosition>\n${p.via && p.via !== 'DCT' && p.stage === 'ENR' ? `      <ATCAirway>${xmlEsc(p.via)}</ATCAirway>\n` : ''}${p.stage === 'SID' ? `      <DepartureFP>${xmlEsc(p.via)}</DepartureFP>\n` : ''}${p.stage === 'STAR' ? `      <ArrivalFP>${xmlEsc(p.via)}</ArrivalFP>\n` : ''}${p.type !== 'LL' ? `      <ICAO><ICAOIdent>${xmlEsc(p.ident)}</ICAOIdent></ICAO>\n` : ''}    </ATCWaypoint>`),
+    ...pts.map((p) => {
+      const rwy = p.stage === 'SID' ? x.depRwy : p.stage === 'STAR' ? x.arrRwy : null;
+      const proc = p.stage === 'SID' ? `      <DepartureFP>${xmlEsc(p.via)}</DepartureFP>\n` : p.stage === 'STAR' ? `      <ArrivalFP>${xmlEsc(p.via)}</ArrivalFP>\n` : '';
+      return `    <ATCWaypoint id="${xmlEsc(p.ident)}">\n      <ATCWaypointType>${wpType(p)}</ATCWaypointType>\n      <WorldPosition>${worldPos(p, x.fl * 100)}</WorldPosition>\n` +
+        (p.via && p.via !== 'DCT' && p.stage === 'ENR' ? `      <ATCAirway>${xmlEsc(p.via)}</ATCAirway>\n` : '') + proc +
+        (proc && rwy ? rwyTags(rwy) : '') +
+        (p.type !== 'LL' ? `      <ICAO>\n${p.region ? `        <ICAORegion>${xmlEsc(p.region)}</ICAORegion>\n` : ''}        <ICAOIdent>${xmlEsc(p.ident)}</ICAOIdent>\n      </ICAO>\n` : '') +
+        '    </ATCWaypoint>';
+    }),
     `    <ATCWaypoint id="${x.arr.icao}">\n      <ATCWaypointType>Airport</ATCWaypointType>\n      <WorldPosition>${worldPos(x.arr, x.arr.elev)}</WorldPosition>\n${x.arrRwy ? `      <RunwayNumberFP>${parseInt(x.arrRwy, 10)}</RunwayNumberFP>\n${/[LRC]$/.test(x.arrRwy) ? `      <RunwayDesignatorFP>${{ L: 'LEFT', R: 'RIGHT', C: 'CENTER' }[x.arrRwy.slice(-1)]}</RunwayDesignatorFP>\n` : ''}` : ''}      <ICAO><ICAOIdent>${x.arr.icao}</ICAOIdent></ICAO>\n    </ATCWaypoint>`,
   ];
   return `<?xml version="1.0" encoding="UTF-8"?>
