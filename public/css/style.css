@@ -328,9 +328,6 @@ body.view-planner .tour-view { opacity: 0; visibility: hidden; }
 .focus__facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2xs); margin-bottom: var(--space-sm); }
 .focus__facts small { display: block; color: var(--color-neutral); font-size: var(--text-xs); }
 .focus__facts b { font-weight: 500; font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
-.focus__fleet { display: flex; gap: var(--space-2xs); margin-bottom: var(--space-xs); }
-.fleet { flex: 1; min-width: 0; font-size: var(--text-xs); color: var(--color-muted); }
-.fleet__ph { position: relative; height: 84px; border-radius: var(--radius-input); overflow: hidden; margin-bottom: var(--space-3xs); }
 .focus__line { font-size: var(--text-xs); color: var(--color-muted); margin: 0 0 var(--space-sm); }
 .focus__places { list-style: none; margin: 0 0 var(--space-sm); padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2xs); }
 .focus__places .mini { position: relative; height: 60px; border-radius: var(--radius-input); overflow: hidden; }

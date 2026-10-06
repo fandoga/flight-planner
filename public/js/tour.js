@@ -1,7 +1,7 @@
 // Тур «Vice Skies — USA»: экран с карточками рейсов и сборка маршрута под выбранные ВПП
-import { aircraftSvg, icon } from './art.js';
-import { findAircraft, artType } from './aircraft.js';
-import { photoBox, aircraftPhotoBox, hydratePhotos } from './photos.js';
+import { icon } from './art.js';
+import { findAircraft } from './aircraft.js';
+import { photoBox, hydratePhotos } from './photos.js';
 
 export const CITY = {
   KSEA: 'Сиэтл', KSFO: 'Сан-Франциско', KLAS: 'Лас-Вегас', KGCN: 'Гранд-Каньон', KTUS: 'Тусон',
@@ -45,8 +45,6 @@ const legCodes = (leg) => {
 };
 
 function stopRow(leg, done, selected) {
-  const ac = leg.aircraft[0];
-  const acObj = findAircraft(ac.id);
   return `<li class="stop ${selected ? 'is-selected' : ''} ${done ? 'is-done' : ''}" data-leg="${leg.id}">
     <button class="stop__hit" data-select-leg="${leg.id}" aria-pressed="${selected}" aria-label="Рейс ${leg.id}: ${esc(legCities(leg))}"></button>
     <span class="stop__num">${done ? icon('check') : leg.id}</span>
@@ -55,7 +53,7 @@ function stopRow(leg, done, selected) {
       <div class="stop__meta"><span class="mono">${legCodes(leg)}</span><span>${legDist(leg).toLocaleString('ru-RU')} nm</span><span>≈ ${fmtHours(legHours(leg))}</span></div>
       <div class="stop__ac">${esc(leg.aircraft.map((a) => a.label).join(' / '))}</div>
     </div>
-    <div class="stop__thumb">${aircraftPhotoBox(acObj, ac.livery, aircraftSvg(artType(acObj), ac.livery), { credit: false })}</div>
+    <div class="stop__thumb">${photoBox(leg.landmarks[leg.landmarks.length - 1], { credit: false })}</div>
   </li>`;
 }
 
@@ -78,10 +76,7 @@ export function renderTourFocus(tour, legId) {
         <div><small>Дистанция</small><b>${legDist(leg).toLocaleString('ru-RU')} nm</b></div>
         <div><small>В воздухе</small><b>≈ ${fmtHours(legHours(leg))}</b></div>
       </div>
-      <div class="focus__fleet">${leg.aircraft.map((a) => {
-        const o = findAircraft(a.id);
-        return `<div class="fleet"><div class="fleet__ph">${aircraftPhotoBox(o, a.livery, aircraftSvg(artType(o), a.livery), { credit: leg.aircraft.length === 1 })}</div><span>${esc(a.label)}</span></div>`;
-      }).join('')}</div>
+      <p class="focus__line">Самолёт: ${esc(leg.aircraft.map((a) => a.label).join(' / '))}</p>
       <p class="focus__line">${procs.length ? `<span class="mono">${esc(procs.join(' · '))}</span> · ` : ''}${seg.rules === 'V' ? 'визуальный полёт вдоль берега' : seg.level === 'high' ? 'верхние трассы' : 'нижние трассы'} · сценарии ${esc(leg.scenery.join(', '))}</p>
       <ul class="focus__places">${leg.landmarks.slice(0, -1).slice(0, 3).map((m) => `<li><div class="mini">${photoBox(m, { credit: false })}</div><span>${esc(m.name)}</span></li>`).join('')}</ul>
       <div class="row-btns">
