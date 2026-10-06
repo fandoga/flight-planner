@@ -101,6 +101,8 @@ body.view-tour .chips { visibility: hidden; }
 .btn.primary { background: var(--grad-vice); border-color: transparent; color: #fff; box-shadow: 0 6px 20px rgba(192, 38, 211, .35); flex: 1; }
 .btn.grad { background: var(--grad-sunset); border-color: transparent; color: #2a0a2a; box-shadow: var(--glow); }
 .btn.grad:hover, .btn.primary:hover { filter: brightness(1.08); }
+/* градиент рисуется до внешнего края рамки — без светлой полоски слева */
+.btn.grad, .btn.primary, .rc.proc, .nav button.on, .seg button.on { background-origin: border-box; background-clip: border-box; }
 .btn.ghost { background: transparent; }
 .btn.lg { min-height: 48px; padding: 12px 20px; font-size: 15px; border-radius: 14px; }
 .btn:disabled { opacity: .5; cursor: wait; }
@@ -168,8 +170,7 @@ body.view-tour .leaflet-control-container { display: none; }
 .apt-names { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: -6px 0 8px; font-size: 11.5px; color: var(--dim); }
 .apt-names div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.ac-art { border-radius: 14px; background: radial-gradient(120% 120% at 70% 0%, rgba(255, 79, 163, .22), transparent 55%), linear-gradient(160deg, #2a1257, #140829); margin-bottom: 10px; padding: 4px 6px; border: 1px solid var(--line); }
-.ac-art svg { width: 100%; height: auto; display: block; }
+.ac-art { position: relative; aspect-ratio: 16 / 9; border-radius: 14px; overflow: hidden; margin-bottom: 10px; border: 1px solid var(--line); }
 .ac-spec { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .ac-spec div { background: var(--field); border: 1px solid var(--line); border-radius: 10px; padding: 5px 9px; }
 .ac-spec small { display: block; color: var(--dim); font-size: 10.5px; }
@@ -280,7 +281,7 @@ details.manual textarea { margin-top: 6px; }
 .tc-tip .ico { color: var(--sun); margin-top: 2px; }
 .ac-pick { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
 .ac-pick button { flex: 1; min-width: 92px; border: 1px solid var(--line-2); background: var(--field); border-radius: 12px; padding: 4px 6px 6px; color: var(--muted); font-size: 11px; font-weight: 600; text-align: center; transition: border-color .2s, background .2s; }
-.ac-pick button svg { width: 100%; height: 44px; display: block; }
+.ac-pick .pk { position: relative; display: block; height: 58px; border-radius: 8px; overflow: hidden; margin-bottom: 5px; }
 .ac-pick button.on { border-color: var(--pink); background: rgba(255, 79, 163, .12); color: var(--text); }
 
 /* ---------- Фото / постер ---------- */
@@ -290,6 +291,17 @@ details.manual textarea { margin-top: 6px; }
 .ph.loaded .ph-img { opacity: 1; }
 .ph.duo::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(124, 58, 237, .05) 30%, rgba(13, 6, 32, .88) 100%), linear-gradient(120deg, rgba(255, 79, 163, .28), rgba(124, 58, 237, .18) 60%, transparent); }
 .ph .credit { position: absolute; right: 8px; bottom: 6px; z-index: 3; font-size: 9.5px; color: rgba(255, 255, 255, .75); text-decoration: none; background: rgba(13, 6, 32, .55); padding: 1px 6px; border-radius: 6px; }
+
+/* Фото самолётов */
+.ac-ph { background: radial-gradient(120% 120% at 70% 0%, rgba(255, 79, 163, .22), transparent 55%), linear-gradient(160deg, #2a1257, #140829); }
+.ac-ph .ac-fallback { position: absolute; inset: 0; display: grid; place-items: center; padding: 4px 6px; transition: opacity .5s var(--ease); }
+.ac-ph .ac-fallback > svg { width: 100%; height: auto; display: block; }
+.ac-ph.hero-ph .ac-fallback { display: block; padding: 0; }
+.ac-ph.hero-ph .ac-fallback > svg { position: absolute; inset: 0; height: 100%; }
+.ac-ph.loaded .ac-fallback { opacity: 0; }
+.ac-ph::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, transparent 55%, rgba(13, 6, 32, .55)), linear-gradient(120deg, rgba(255, 79, 163, .12), transparent 50%); }
+.ac-ph.hero-ph::after { background: linear-gradient(180deg, transparent 50%, rgba(13, 6, 32, .7)), linear-gradient(120deg, rgba(255, 79, 163, .25), rgba(124, 58, 237, .12) 60%, transparent); }
+.ph .ph-note { position: absolute; left: 8px; top: 6px; right: 8px; z-index: 3; font-size: 10.5px; color: #fff; background: rgba(13, 6, 32, .6); padding: 2px 7px; border-radius: 6px; width: fit-content; max-width: calc(100% - 16px); }
 
 /* ---------- Места ---------- */
 .place { position: relative; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--line); margin-bottom: 12px; background: var(--card); }
@@ -323,6 +335,7 @@ body.view-planner .tour-view { opacity: 0; pointer-events: none; transform: tran
 .progress-l { font-size: 12.5px; color: var(--muted); margin: 8px 0 18px; }
 .hero-cta { display: flex; gap: 10px; flex-wrap: wrap; }
 .hero-art { position: relative; aspect-ratio: 4 / 3; border-radius: 28px; overflow: hidden; border: 1px solid var(--line-2); box-shadow: var(--shadow), 0 0 80px rgba(255, 79, 163, .18); }
+.hero-art .ph { border-radius: inherit; }
 .hero-art .plane { position: absolute; left: 6%; right: 6%; bottom: 8%; filter: drop-shadow(0 18px 24px rgba(0, 0, 0, .45)); animation: float 6s ease-in-out infinite; z-index: 2; }
 .hero-art .plane svg { width: 100%; height: auto; display: block; }
 @keyframes float { 50% { transform: translateY(-8px); } }
@@ -340,8 +353,7 @@ body.view-planner .tour-view { opacity: 0; pointer-events: none; transform: tran
 .leg-body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 11px; flex: 1; }
 .leg-title { font-weight: 700; font-size: 14.5px; line-height: 1.35; }
 .leg-ac { display: flex; align-items: center; gap: 10px; }
-.leg-ac .art { width: 116px; flex: none; }
-.leg-ac .art svg { width: 100%; height: auto; display: block; }
+.leg-ac .art { position: relative; width: 120px; height: 76px; flex: none; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); }
 .leg-ac div { font-size: 12.5px; color: var(--muted); }
 .leg-ac b { display: block; color: var(--text); font-size: 13px; }
 .leg-meta { display: flex; flex-wrap: wrap; gap: 6px; }

@@ -1,7 +1,7 @@
 // Тур «Vice Skies — USA»: экран с карточками рейсов и сборка маршрута под выбранные ВПП
 import { aircraftSvg, sceneSvg, icon } from './art.js';
 import { findAircraft, artType } from './aircraft.js';
-import { photoBox, hydratePhotos } from './photos.js';
+import { photoBox, aircraftPhotoBox, hydratePhotos } from './photos.js';
 
 export const CITY = {
   KSEA: 'Сиэтл', KSFO: 'Сан-Франциско', KLAS: 'Лас-Вегас', KGCN: 'Гранд-Каньон', KTUS: 'Тусон',
@@ -52,7 +52,7 @@ function legCard(leg, done) {
     </div>
     <div class="leg-body">
       <div class="leg-title">${esc(leg.title)}</div>
-      <div class="leg-ac"><div class="art">${aircraftSvg(artType(acObj), ac.livery)}</div>
+      <div class="leg-ac"><div class="art">${aircraftPhotoBox(acObj, ac.livery, aircraftSvg(artType(acObj), ac.livery), { credit: false })}</div>
         <div><b>${esc(leg.aircraft.map((a) => a.label).join(' / '))}</b>${seg.rules === 'V' ? 'визуальный полёт' : seg.level === 'high' ? 'по верхним трассам' : 'по нижним трассам'}</div></div>
       <div class="leg-meta">
         <span class="tag">${icon('route')}${dist} nm</span>
@@ -91,7 +91,7 @@ export function renderTourView(tour) {
         <button class="btn lg" data-nav="planner">${icon('map')}Свободный план</button>
       </div>
     </div>
-    <div class="hero-art">${sceneSvg('coast', 'hero-miami')}<div class="plane">${aircraftSvg('airliner', 'american')}</div></div>`;
+    <div class="hero-art">${aircraftPhotoBox(findAircraft('A21N'), 'american', `${sceneSvg('coast', 'hero-miami')}<div class="plane">${aircraftSvg('airliner', 'american')}</div>`, { cls: 'hero-ph' })}</div>`;
   document.getElementById('tourGrid').innerHTML = tour.legs.map((l) => legCard(l, done.has(l.id))).join('');
   document.getElementById('tourFoot').innerHTML = `Навигационные данные: FAA CIFP/NASR (AIRAC от ${esc(tour.airac)}), только для авиасимуляторов. Фото — Wikipedia / Wikimedia Commons, иллюстрации — Vice Skies.`;
   hydratePhotos(document.getElementById('viewTour'));

@@ -1,6 +1,6 @@
 import { AIRCRAFT, findAircraft, artType, PAX_MASS, BAG_MASS } from './aircraft.js';
 import { aircraftSvg, icon, hydrateIcons } from './art.js';
-import { photoBox, hydratePhotos } from './photos.js';
+import { photoBox, aircraftPhotoBox, hydratePhotos } from './photos.js';
 import { loadTour, renderTourView, composeTourRoute, tourApproaches, doneSet, toggleDone, CITY, legHours, fmtHours } from './tour.js';
 import { parseMetar, describeMetar, rankRunways } from './metar.js';
 import { computePlan, autoCruiseFl, cruiseTas, bearing, distNm, interpolate, fmtTime } from './calc.js';
@@ -430,7 +430,7 @@ function renderSelects() {
 function renderLeftInfo() {
   const ac = findAircraft(S.acId);
   const liv = S.tour ? S.livery : ac.cat === 'J' ? 'house' : 'tour';
-  if ($('acArt').dataset.key !== ac.id + liv) { $('acArt').innerHTML = aircraftSvg(artType(ac), liv); $('acArt').dataset.key = ac.id + liv; }
+  if ($('acArt').dataset.key !== ac.id + liv) { $('acArt').innerHTML = aircraftPhotoBox(ac, liv, aircraftSvg(artType(ac), liv)); $('acArt').dataset.key = ac.id + liv; hydratePhotos($('acArt')); }
   renderRouteChips();
   $('acSpec').innerHTML = [
     ['MTOW', fmtW(ac.mtow)], ['MLW', fmtW(ac.mlw)], ['MZFW', fmtW(ac.mzfw)],
@@ -934,7 +934,7 @@ function renderTourCard() {
       <div class="tc-title">${esc(leg.title)}</div>
       <p class="tc-text">${esc(leg.blurb)}</p>
       ${leg.segments.length > 1 ? `<div class="seg">${leg.segments.map((sg, i) => `<button data-tour-seg="${i}" class="${i === segIdx ? 'on' : ''}">${i ? 'Обратно' : 'Туда'}: ${sg.dep} → ${sg.arr}</button>`).join('')}</div>` : ''}
-      <div class="ac-pick">${leg.aircraft.map((a, i) => `<button data-tour-ac="${i}" class="${a.id === S.acId && a.livery === S.livery ? 'on' : ''}" aria-pressed="${a.id === S.acId && a.livery === S.livery}">${aircraftSvg(artType(findAircraft(a.id)), a.livery)}${esc(a.label)}</button>`).join('')}</div>
+      <div class="ac-pick">${leg.aircraft.map((a, i) => `<button data-tour-ac="${i}" class="${a.id === S.acId && a.livery === S.livery ? 'on' : ''}" aria-pressed="${a.id === S.acId && a.livery === S.livery}"><span class="pk">${aircraftPhotoBox(findAircraft(a.id), a.livery, aircraftSvg(artType(findAircraft(a.id)), a.livery), { credit: false })}</span>${esc(a.label)}</button>`).join('')}</div>
       <div class="tc-tip">${icon('sparkle')}<span>${esc(leg.tip)}</span></div>
       ${!onRoute || S.routeMode !== 'tour' ? `<div class="row-btns"><button class="btn primary" data-tour-restore="1">${icon('route')}Вернуть маршрут тура</button></div>` : ''}
       <div class="row-btns">
