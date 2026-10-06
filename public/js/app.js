@@ -1,10 +1,10 @@
 import { AIRCRAFT, findAircraft, artType, PAX_MASS, BAG_MASS } from './aircraft.js';
 import { aircraftSvg, icon, hydrateIcons } from './art.js';
 import { photoBox, aircraftPhotoBox, hydratePhotos } from './photos.js';
-import { loadTour, renderTourView, composeTourRoute, tourApproaches, doneSet, toggleDone, CITY, legHours, fmtHours } from './tour.js';
+import { loadTour, renderTourView, renderTourFocus, selectTourRow, composeTourRoute, tourApproaches, doneSet, toggleDone, CITY, legHours, fmtHours } from './tour.js';
 import { parseMetar, describeMetar, rankRunways } from './metar.js';
 import { computePlan, autoCruiseFl, cruiseTas, bearing, distNm, interpolate, fmtTime } from './calc.js';
-import { initMap, drawRoute, drawLandmarks, focusLandmark, invalidate } from './map.js';
+import { initMap, drawRoute, drawLandmarks, focusLandmark, invalidate, drawTour, clearTour } from './map.js';
 import { exportPlan, plnText } from './export.js';
 import { listPlans, savePlan, deletePlan, getPlan, parsePln, routeString } from './plans.js';
 
@@ -361,7 +361,7 @@ function updateAll(fit) {
   renderFuel();
   renderLog();
   const d = depApt(), a = arrApt();
-  if (d && a) {
+  if (d && a && S.view === 'planner') {
     drawRoute({ dep: d, arr: a, altn: altnApt(), points: D.route?.points || [], log: D.plan?.log, depRwy: selectedRunway('dep')?.ident, arrRwy: selectedRunway('arr')?.ident }, fit);
   }
   renderTourCard();
@@ -525,7 +525,7 @@ function renderFuel() {
   const p = D.plan;
   if (!p) { el.innerHTML = '<div class="empty">Постройте маршрут</div>'; return; }
   const ac = findAircraft(S.acId);
-  const bar = (label, val, max) => `<div class="wbar ${val > max + 1 ? 'over' : ''}"><div class="top"><span>${label}</span><span><b>${fmtW(val)}</b> / ${fmtW(max)} ${U()}</span></div><div class="track"><div class="fill" style="width:${Math.min(100, val / max * 100).toFixed(1)}%"></div></div></div>`;
+  const bar = (label, val, max) => `<div class="wbar ${val > max + 1 ? 'over' : ''}"><div class="top"><span>${label}</span><span><b>${fmtW(val)}</b> / ${fmtW(max)} ${U()}</span></div><div class="track"><div class="fill" style="transform:scaleX(${Math.min(1, val / max).toFixed(3)})"></div></div></div>`;
   el.innerHTML = `
     ${p.warnings.map((w) => `<div class="warnbox ${w.level}">${esc(w.text)}</div>`).join('')}
     <section class="card"><h3>Загрузка</h3>
@@ -586,13 +586,13 @@ function profileSvg(p) {
   const pts = p.log.map((r) => `${x(r.cum).toFixed(1)},${y(r.alt).toFixed(1)}`).join(' ');
   const grid = [0.25, 0.5, 0.75, 1].map((f) => {
     const a = Math.round(maxAlt * f / 1000) * 1000;
-    return `<line x1="${pad.l}" x2="${w - pad.r}" y1="${y(a)}" y2="${y(a)}" stroke="rgba(196,167,255,.15)" stroke-dasharray="2 3"/><text x="${pad.l - 4}" y="${y(a) + 3}" fill="#9484c0" font-size="9" text-anchor="end">${a >= 10000 ? 'FL' + a / 100 : a}</text>`;
+    return `<line x1="${pad.l}" x2="${w - pad.r}" y1="${y(a)}" y2="${y(a)}" style="stroke:var(--color-rule)" stroke-dasharray="2 3"/><text x="${pad.l - 4}" y="${y(a) + 3}" style="fill:var(--color-neutral)" font-size="9" text-anchor="end">${a >= 10000 ? 'FL' + a / 100 : a}</text>`;
   }).join('');
   const labels = p.log.filter((r, i) => i === 0 || i === p.log.length - 1 || r.type === 'TOC' || r.type === 'TOD')
-    .map((r) => `<circle cx="${x(r.cum)}" cy="${y(r.alt)}" r="3" fill="${r.type === 'TOC' || r.type === 'TOD' ? '#ffd166' : '#ff7ac0'}"/><text x="${Math.min(w - 30, Math.max(pad.l + 10, x(r.cum)))}" y="${h - 6}" fill="#c2b3e6" font-size="9" text-anchor="middle">${esc(r.ident)}</text>`).join('');
+    .map((r) => `<circle cx="${x(r.cum)}" cy="${y(r.alt)}" r="3" style="fill:var(${r.type === 'TOC' || r.type === 'TOD' ? '--color-warn' : '--color-accent'})"/><text x="${Math.min(w - 30, Math.max(pad.l + 10, x(r.cum)))}" y="${h - 6}" style="fill:var(--color-muted)" font-size="9" text-anchor="middle">${esc(r.ident)}</text>`).join('');
   return `<svg class="profile" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
-    <defs><linearGradient id="pg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#ff4fa3" stop-opacity=".35"/><stop offset="1" stop-color="#ff4fa3" stop-opacity="0"/></linearGradient></defs>
-    ${grid}<polygon points="${x(0)},${y(0)} ${pts} ${x(p.dist)},${y(0)}" fill="url(#pg)"/><polyline points="${pts}" fill="none" stroke="#ff7ac0" stroke-width="2"/>${labels}</svg>`;
+    <defs><linearGradient id="pg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" style="stop-color:var(--color-accent)" stop-opacity=".3"/><stop offset="1" style="stop-color:var(--color-accent)" stop-opacity="0"/></linearGradient></defs>
+    ${grid}<polygon points="${x(0)},${y(0)} ${pts} ${x(p.dist)},${y(0)}" fill="url(#pg)"/><polyline points="${pts}" fill="none" style="stroke:var(--color-accent)" stroke-width="2"/>${labels}</svg>`;
 }
 
 // ---------------- чарты ----------------
@@ -861,10 +861,21 @@ function setView(v, { push = true } = {}) {
   document.body.classList.toggle('view-tour', v === 'tour');
   document.body.classList.toggle('view-planner', v === 'planner');
   document.querySelectorAll('.nav [data-nav]').forEach((b) => b.classList.toggle('on', b.dataset.nav === v));
-  if (v === 'tour' && D.tour) renderTourView(D.tour);
-  if (v === 'planner') setTimeout(() => { invalidate(); if (depApt() && arrApt()) updateAll(true); }, 60);
+  if (v === 'tour' && D.tour) {
+    D.tourSel = renderTourView(D.tour, D.tourSel);
+    setTimeout(() => { invalidate(); drawTour(D.tour, D.tourSel, pickLeg); }, 60);
+  }
+  if (v === 'planner') { clearTour(); setTimeout(() => { invalidate(); if (depApt() && arrApt()) updateAll(true); }, 60); }
   if (push) history.replaceState(null, '', v === 'tour' ? '#tour' : S.tour ? `#leg-${S.tour.leg}` : '#planner');
   save();
+}
+
+function pickLeg(id) {
+  D.tourSel = id;
+  selectTourRow(id);
+  renderTourFocus(D.tour, id);
+  drawTour(D.tour, id, pickLeg, false);
+  if (innerWidth <= 900) $('tourFocus').scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
 }
 
 async function startTourLeg(legId, segIdx = 0, acIdx = 0) {
@@ -922,7 +933,7 @@ function renderTourCard() {
   const seg = leg.segments[segIdx];
   const onRoute = !!tourSeg();
   const done = doneSet().has(leg.id);
-  const key = `${leg.id}:${segIdx}:${S.acId}:${S.livery}:${onRoute}:${S.routeMode}:${done}`;
+  const key = `${leg.id}:${segIdx}:${S.acId}:${S.livery}:${onRoute}:${S.routeMode}:${done}:${S.view}`;
   if (el.dataset.key === key) return;
   el.dataset.key = key;
   el.hidden = false;
@@ -936,14 +947,14 @@ function renderTourCard() {
       ${leg.segments.length > 1 ? `<div class="seg">${leg.segments.map((sg, i) => `<button data-tour-seg="${i}" class="${i === segIdx ? 'on' : ''}">${i ? 'Обратно' : 'Туда'}: ${sg.dep} → ${sg.arr}</button>`).join('')}</div>` : ''}
       <div class="ac-pick">${leg.aircraft.map((a, i) => `<button data-tour-ac="${i}" class="${a.id === S.acId && a.livery === S.livery ? 'on' : ''}" aria-pressed="${a.id === S.acId && a.livery === S.livery}"><span class="pk">${aircraftPhotoBox(findAircraft(a.id), a.livery, aircraftSvg(artType(findAircraft(a.id)), a.livery), { credit: false })}</span>${esc(a.label)}</button>`).join('')}</div>
       <div class="tc-tip">${icon('sparkle')}<span>${esc(leg.tip)}</span></div>
-      ${!onRoute || S.routeMode !== 'tour' ? `<div class="row-btns"><button class="btn primary" data-tour-restore="1">${icon('route')}Вернуть маршрут тура</button></div>` : ''}
+      ${!onRoute || S.routeMode !== 'tour' ? `<div class="row-btns"><button class="btn cta" data-tour-restore="1">${icon('route')}Вернуть маршрут тура</button></div>` : ''}
       <div class="row-btns">
         <button class="btn" data-nav="tour">${icon('back')}Все рейсы</button>
-        <button class="btn ${done ? '' : 'grad'}" data-tour-done="${leg.id}">${icon('check')}${done ? 'Пройден' : 'Отметить пройденным'}</button>
+        <button class="btn ${done ? '' : 'cta'}" data-tour-done="${leg.id}">${icon('check')}${done ? 'Пройден' : 'Отметить пройденным'}</button>
       </div>
     </div>`;
   hydratePhotos(el);
-  drawLandmarks(leg.landmarks, (i) => showPlace(i));
+  if (S.view === 'planner') drawLandmarks(leg.landmarks, (i) => showPlace(i));
 }
 
 function renderPlaces() {
@@ -970,9 +981,10 @@ function showPlace(i) {
 
 function bindTour() {
   document.addEventListener('click', (e) => {
-    const t = e.target.closest('[data-start-leg], [data-nav], [data-tour-seg], [data-tour-ac], [data-tour-done], [data-tour-restore], [data-place-map]');
+    const t = e.target.closest('[data-select-leg], [data-start-leg], [data-nav], [data-tour-seg], [data-tour-ac], [data-tour-done], [data-tour-restore], [data-place-map]');
     if (!t) return;
-    if (t.dataset.startLeg) { e.preventDefault(); startTourLeg(+t.dataset.startLeg); }
+    if (t.dataset.selectLeg) pickLeg(+t.dataset.selectLeg);
+    else if (t.dataset.startLeg) { e.preventDefault(); startTourLeg(+t.dataset.startLeg); }
     else if (t.dataset.nav) { e.preventDefault(); setView(t.dataset.nav); }
     else if (t.dataset.tourSeg) startTourLeg(S.tour.leg, +t.dataset.tourSeg, S.tour.ac || 0);
     else if (t.dataset.tourAc) {
@@ -1098,7 +1110,7 @@ function renderPlans() {
     <div class="plan-item ${p.id === S.planId ? 'active' : ''}">
       <div class="pi-main" data-plan-open="${p.id}" title="Открыть"><b>${esc(p.name)}</b><small>${esc(p.summary)} · ${new Date(p.saved).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</small></div>
       <button data-plan-pln="${p.id}" title="Скачать для MSFS">.pln</button>
-      <button data-plan-del="${p.id}" title="Удалить">✕</button>
+      <button data-plan-del="${p.id}" title="Удалить" aria-label="Удалить план">${icon('x')}</button>
     </div>`).join('') : '<div class="msg" style="margin-bottom:6px">Сохранённых планов пока нет</div>';
 }
 

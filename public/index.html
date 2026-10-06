@@ -8,8 +8,9 @@
   <meta name="theme-color" content="#0d0620">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Geist:wght@400;500;600&family=Geist+Mono:wght@500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="/css/tokens.css">
   <link rel="stylesheet" href="/css/style.css">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23ff4fa3'/%3E%3Cstop offset='1' stop-color='%23ffb84d'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ccircle cx='12' cy='12' r='11' fill='%230d0620'/%3E%3Cpath fill='url(%23g)' d='M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z'/%3E%3C/svg%3E">
 </head>
@@ -17,20 +18,18 @@
   <div id="map" aria-label="Карта маршрута"></div>
   <div class="map-tint" aria-hidden="true"></div>
 
-  <header class="topbar">
-    <a class="brand" href="#tour" data-nav="tour" aria-label="Vice Skies — на главную">
-      <span class="brand-mark"><i data-icon="plane"></i></span>
-      <span class="brand-text"><b>VICE</b><b class="g">SKIES</b><small>flight planner</small></span>
+  <header class="nav-pill">
+    <a class="wordmark" href="#tour" data-nav="tour" aria-label="Vice Skies — к туру">
+      <span class="wordmark__mark"><i data-icon="plane"></i></span><span>Vice Skies</span>
     </a>
     <nav class="nav" aria-label="Разделы">
-      <button data-nav="tour" class="on"><i data-icon="flag"></i><span>Тур по США</span></button>
-      <button data-nav="planner"><i data-icon="map"></i><span>Планировщик</span></button>
+      <button data-nav="tour" class="on" aria-label="Тур по США"><i data-icon="flag"></i><span>Тур по США</span></button>
+      <button data-nav="planner" aria-label="Планировщик"><i data-icon="map"></i><span>Планировщик</span></button>
     </nav>
-    <div class="chips" id="summary" aria-live="polite"></div>
     <div class="top-actions">
-      <button class="btn grad" id="savePlanBtn" title="Сохранить план и скачать .pln для MSFS"><i data-icon="save"></i><span>Сохранить</span></button>
+      <button class="btn cta" id="savePlanBtn" aria-label="Сохранить" title="Сохранить план и скачать .pln для MSFS"><i data-icon="save"></i><span>Сохранить</span></button>
       <div class="dropdown">
-        <button class="btn ghost" id="exportBtn" aria-haspopup="true"><i data-icon="download"></i><span>Экспорт</span></button>
+        <button class="btn ghost" id="exportBtn" aria-haspopup="true" aria-label="Экспорт"><i data-icon="download"></i><span>Экспорт</span></button>
         <div class="dropdown-menu" id="exportMenu" role="menu">
           <button data-export="pln" role="menuitem">MSFS 2020/2024 (.pln)</button>
           <button data-export="import" role="menuitem">Импорт .pln из MSFS…</button>
@@ -46,12 +45,16 @@
       </select>
     </div>
   </header>
+  <div class="chips" id="summary" aria-live="polite"></div>
 
   <!-- ======================= ТУР ======================= -->
   <main class="tour-view" id="viewTour">
-    <section class="tour-hero" id="tourHero"></section>
-    <section class="tour-grid" id="tourGrid" aria-label="Рейсы тура"></section>
-    <footer class="tour-foot" id="tourFoot"></footer>
+    <div class="tour-sheet">
+      <section class="tour-head" id="tourHero"></section>
+      <ol class="itinerary" id="tourGrid" aria-label="Рейсы тура"></ol>
+      <footer class="foot-stmt" id="tourFoot"></footer>
+    </div>
+    <aside class="tour-focus" id="tourFocus" aria-live="polite"></aside>
   </main>
 
   <!-- ======================= ПЛАНИРОВЩИК ======================= -->
@@ -119,7 +122,7 @@
             <button data-level="low">Нижние</button>
           </div>
           <div class="row-btns">
-            <button class="btn primary" id="buildRoute"><i data-icon="route"></i>Построить по трассам</button>
+            <button class="btn cta" id="buildRoute"><i data-icon="route"></i>Построить по трассам</button>
             <button class="btn" id="directRoute" title="Прямой маршрут">DCT</button>
           </div>
           <label class="field">

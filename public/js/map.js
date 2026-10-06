@@ -6,6 +6,9 @@ import { photoBox, hydratePhotos } from './photos.js';
 let map, routeLayer, aptLayer, navLayer, awyLayer, lmLayer;
 let lmMarkers = [];
 let wptMarkers = [];
+let tourLayer;
+/** Цвет из токенов дизайн-системы (public/css/tokens.css) */
+const tok = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const layersOn = { airports: true, navaids: false, airways: false };
 let onAirportClick = () => {};
 
@@ -19,6 +22,7 @@ export function initMap(opts = {}) {
   navLayer = L.layerGroup().addTo(map);
   routeLayer = L.layerGroup().addTo(map);
   lmLayer = L.layerGroup().addTo(map);
+  tourLayer = L.layerGroup().addTo(map);
   map.on('moveend', refreshOverlays);
   map.on('zoomend', layoutLabels);
   document.querySelectorAll('#layerCtrl input').forEach((cb) => {
@@ -51,7 +55,7 @@ async function loadOverlays() {
     if (kind === 'apt') {
       for (const [icao, lat, lon, rank] of data) {
         const m = L.circleMarker([lat, lon], {
-          radius: rank >= 3 ? 4 : rank === 2 ? 3 : 2, color: '#6b5a98', weight: 1, fillColor: rank >= 3 ? '#b4a3e0' : '#5b4a80', fillOpacity: 0.9,
+          radius: rank >= 3 ? 4 : rank === 2 ? 3 : 2, color: tok('--color-neutral'), weight: 1, fillColor: rank >= 3 ? tok('--color-muted') : tok('--color-rule'), fillOpacity: 0.9,
         }).bindTooltip(icao, { className: 'nav-tip', direction: 'top', offset: [0, -4] });
         m.on('click', () => onAirportClick(icao));
         aptLayer.addLayer(m);
@@ -61,13 +65,13 @@ async function loadOverlays() {
         const isVor = type === 'VOR' || type === 'DME';
         const m = L.circleMarker([lat, lon], {
           radius: isVor ? 3.5 : type === 'NDB' ? 3 : 1.8,
-          color: isVor ? '#5ee7ff' : type === 'NDB' ? '#ffb84d' : '#6b5a98', weight: 1, fillOpacity: 0.6,
+          color: isVor ? tok('--color-sky') : type === 'NDB' ? tok('--color-warn') : tok('--color-neutral'), weight: 1, fillOpacity: 0.6,
         }).bindTooltip(`${id}${freq ? ' ' + freq : ''}`, { className: 'nav-tip', direction: 'top' });
         navLayer.addLayer(m);
       }
     } else if (kind === 'awy') {
       for (const [la1, lo1, la2, lo2, name, level] of data) {
-        awyLayer.addLayer(L.polyline([[la1, lo1], [la2, lo2]], { color: level === 2 ? '#5b21b6' : '#3b2a5e', weight: 1, opacity: 0.8 }).bindTooltip(name, { className: 'nav-tip', sticky: true }));
+        awyLayer.addLayer(L.polyline([[la1, lo1], [la2, lo2]], { color: level === 2 ? tok('--color-violet') : tok('--color-rule'), weight: 1, opacity: level === 2 ? 0.45 : 0.8 }).bindTooltip(name, { className: 'nav-tip', sticky: true }));
       }
     }
   }
@@ -104,11 +108,10 @@ export function drawRoute({ dep, arr, altn, points, log, depRwy, arrRwy }, fit =
   if (!dep || !arr) return;
   const all = [dep, ...(points || []), arr];
   const latlngs = geodesicLatLngs(all);
-  routeLayer.addLayer(L.polyline(latlngs, { color: '#ff4fa3', weight: 12, opacity: 0.16, interactive: false }));
-  routeLayer.addLayer(L.polyline(latlngs, { color: '#ff7ac0', weight: 5, opacity: 0.35, interactive: false }));
-  routeLayer.addLayer(L.polyline(latlngs, { color: '#ffe1f1', weight: 2, opacity: 0.95, interactive: false }));
+  routeLayer.addLayer(L.polyline(latlngs, { color: tok('--color-accent'), weight: 6, opacity: 0.22, interactive: false }));
+  routeLayer.addLayer(L.polyline(latlngs, { color: tok('--color-accent'), weight: 2.5, opacity: 1, interactive: false }));
   if (altn) {
-    routeLayer.addLayer(L.polyline(geodesicLatLngs([arr, altn]), { color: '#a78bfa', weight: 1.6, dashArray: '6 6', opacity: 0.8, interactive: false }));
+    routeLayer.addLayer(L.polyline(geodesicLatLngs([arr, altn]), { color: tok('--color-violet'), weight: 1.6, dashArray: '6 6', opacity: 0.8, interactive: false }));
   }
   // точки маршрута
   const lonFix = (lat, lon) => {
@@ -124,7 +127,7 @@ export function drawRoute({ dep, arr, altn, points, log, depRwy, arrRwy }, fit =
   (points || []).forEach((p, idx) => {
     const isProc = p.stage === 'SID' || p.stage === 'STAR';
     const m = L.circleMarker([p.lat, lonFix(p.lat, p.lon)], {
-      radius: p.type === 'VOR' || p.type === 'NDB' ? 4 : 3, color: isProc ? '#5ee7ff' : '#ff7ac0', weight: 1.5, fillColor: '#140828', fillOpacity: 1,
+      radius: p.type === 'VOR' || p.type === 'NDB' ? 4 : 3, color: isProc ? tok('--color-sky') : tok('--color-accent'), weight: 1.5, fillColor: tok('--color-paper'), fillOpacity: 1,
     });
     m.bindPopup(`<b>${p.ident}</b> ${p.type || ''}${p.freq ? ' ' + p.freq : ''}<br>${p.via ? 'через ' + p.via + '<br>' : ''}${p.lat.toFixed(4)}, ${p.lon.toFixed(4)}`);
     m._label = p.ident;
@@ -134,11 +137,11 @@ export function drawRoute({ dep, arr, altn, points, log, depRwy, arrRwy }, fit =
   // T/C, T/D
   for (const r of log || []) {
     if (r.type !== 'TOC' && r.type !== 'TOD') continue;
-    routeLayer.addLayer(L.circleMarker([r.lat, lonFix(r.lat, r.lon)], { radius: 4, color: '#ffd166', weight: 2, fillOpacity: 0 })
+    routeLayer.addLayer(L.circleMarker([r.lat, lonFix(r.lat, r.lon)], { radius: 4, color: tok('--color-warn'), weight: 2, fillOpacity: 0 })
       .bindTooltip(r.ident, { permanent: true, direction: 'left', offset: [-5, 0], className: 'wpt-label' }));
   }
   const apt = (a, cls, rw) => {
-    routeLayer.addLayer(L.circleMarker([a.lat, lonFix(a.lat, a.lon)], { radius: 6, color: cls === 'altn' ? '#a78bfa' : '#ff4fa3', weight: 2.5, fillColor: '#140828', fillOpacity: 1 })
+    routeLayer.addLayer(L.circleMarker([a.lat, lonFix(a.lat, a.lon)], { radius: 6, color: cls === 'altn' ? tok('--color-violet') : tok('--color-accent'), weight: 2.5, fillColor: tok('--color-paper'), fillOpacity: 1 })
       .bindTooltip(a.icao + (rw ? ' ' + rw : ''), { permanent: true, direction: 'top', offset: [0, -8], className: 'apt-label ' + cls }));
   };
   apt(dep, '', depRwy);
@@ -248,6 +251,55 @@ export function focusLandmark(i) {
   map.flyTo(m.getLatLng(), Math.max(map.getZoom(), 8), { duration: 0.8 });
   setTimeout(() => m.openPopup(), 850);
 }
+
+/** Весь тур на карте: линии рейсов + пронумерованные узлы. onPick(legId) — выбор рейса */
+export function drawTour(tour, selectedId, onPick = () => {}, fit = true) {
+  if (!tourLayer) return;
+  tourLayer.clearLayers();
+  routeLayer.clearLayers();
+  lmLayer.clearLayers(); lmLayer._key = '';
+  const bounds = L.latLngBounds([]);
+  const apt = (icao) => tour.airports[icao];
+  const sel = [];
+  for (const leg of tour.legs) {
+    const on = leg.id === selectedId;
+    leg.segments.forEach((seg, k) => {
+      if (k > 0) return; // обратный сегмент кругового рейса повторяет прямой
+      const pts = [apt(seg.dep), ...seg.enroute, apt(seg.arr)];
+      const ll = geodesicLatLngs(pts);
+      ll.forEach((p) => bounds.extend(p));
+      const line = L.polyline(ll, { color: on ? tok('--color-accent') : tok('--color-violet'), weight: on ? 3.5 : 2, opacity: on ? 1 : 0.55, dashArray: seg.rules === 'V' ? '4 6' : null });
+      line.on('click', () => onPick(leg.id));
+      line.bindTooltip(`Рейс ${leg.id}: ${seg.dep} → ${seg.arr}`, { className: 'nav-tip', sticky: true });
+      if (on) sel.push(line); else tourLayer.addLayer(line);
+    });
+  }
+  sel.forEach((l) => tourLayer.addLayer(l));
+  // узлы: номер рейса у аэропорта вылета; финиш — у последнего прилёта
+  const nodes = new Map();
+  for (const leg of tour.legs) {
+    const dep = leg.segments[0].dep;
+    if (!nodes.has(dep)) nodes.set(dep, []);
+    nodes.get(dep).push(leg.id);
+  }
+  const last = tour.legs[tour.legs.length - 1].segments[0].arr;
+  for (const [icao, ids] of nodes) {
+    const a = apt(icao);
+    const on = ids.includes(selectedId);
+    const m = L.marker([a.lat, a.lon], {
+      icon: L.divIcon({ className: 'tour-node-wrap', html: `<span class="tour-node ${on ? 'is-on' : ''}">${ids.join('·')}</span><span class="tour-node__code">${icao}</span>`, iconSize: [0, 0] }),
+      keyboard: false,
+    });
+    m.on('click', () => onPick(ids[0]));
+    tourLayer.addLayer(m);
+  }
+  const f = apt(last);
+  tourLayer.addLayer(L.marker([f.lat, f.lon], { icon: L.divIcon({ className: 'tour-node-wrap', html: `<span class="tour-node is-finish">${icon('flag')}</span><span class="tour-node__code">${last}</span>`, iconSize: [0, 0] }), keyboard: false }));
+  const wide = innerWidth > 900;
+  if (fit) map.fitBounds(bounds, { paddingTopLeft: [wide ? 470 : 16, wide ? 90 : 76], paddingBottomRight: [wide ? 400 : 16, wide ? 40 : Math.round(innerHeight * 0.56)], maxZoom: 6 });
+}
+
+export function clearTour() { tourLayer && tourLayer.clearLayers(); }
 
 export function invalidate() { map && map.invalidateSize(); }
 

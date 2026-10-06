@@ -80,6 +80,11 @@ npm start          # http://localhost:3000  (порт: PORT=8080 npm start)
 | Чарты | FAA d-TPP, ChartFox, AIP стран | бесплатно |
 | Подложка | Esri World Dark Gray Canvas / © OpenStreetMap | Esri / ODbL |
 
+## Дизайн-система
+
+`design.md` — зафиксированная система (Hallmark): жанр atmospheric, экран тура — Map / Diagram,
+планировщик — Workbench; токены цветов (OKLCH), шрифтов и отступов — `public/css/tokens.css`.
+
 ## Структура
 
 ```
