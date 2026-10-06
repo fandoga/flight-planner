@@ -254,3 +254,13 @@ body.left-collapsed .map-ctrl { left: 24px; }
   .map-ctrl { display: none; }
   .leaflet-control-zoom { margin-left: 10px !important; }
 }
+
+.btn.primary.sm { flex: none; padding: 7px 14px; }
+.plan-item { display: flex; align-items: center; gap: 6px; padding: 7px 8px; border: 1px solid var(--line); border-radius: 9px; background: #0a1222; margin-bottom: 6px; }
+.plan-item .pi-main { flex: 1; min-width: 0; cursor: pointer; }
+.plan-item .pi-main b { font-family: var(--mono); color: var(--blue-2); font-size: 12px; }
+.plan-item .pi-main small { display: block; color: var(--dim); font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.plan-item:hover { border-color: var(--line-2); }
+.plan-item.active { border-color: var(--blue); }
+.plan-item button { border: 1px solid var(--line-2); background: none; border-radius: 7px; color: var(--muted); padding: 3px 7px; cursor: pointer; font-size: 11px; }
+.plan-item button:hover { color: var(--text); border-color: var(--blue); }

@@ -6,15 +6,30 @@
 
 > Только для авиасимуляторов. Не использовать для реальной навигации.
 
-## Запуск
+## Запуск локально
 
 ```bash
 npm install
 npm start          # http://localhost:3000  (порт: PORT=8080 npm start)
 ```
 
-При первом запуске сервер сам скачает открытые базы в `data/raw` (≈25 МБ, нужен доступ к
-raw.githubusercontent.com). Принудительно обновить: `npm run setup -- --force`.
+Базы лежат в репозитории в сжатом виде (`data/db`, ≈6.5 МБ). Обновить их из источников:
+`npm run update-data` и закоммитить `data/db`.
+
+## Деплой на Vercel
+
+1. vercel.com → Add New → Project → импортировать репозиторий `fandoga/flight-planner`.
+2. Framework Preset: **Other**, Build Command — пусто, Output Directory — `public` (уже задано в `vercel.json`).
+3. Deploy. Статика раздаётся из `public/`, API — serverless-функция `api/index.js` (Express),
+   базы `data/db` подключаются к функции через `includeFiles`. Переменные окружения не нужны.
+
+## Планы и MSFS
+
+- **Сохранить** (кнопка вверху) — план записывается в «Мои планы» (хранится в браузере) и сразу скачивается `.pln`.
+- В «Моих планах»: открыть план (маршрут восстанавливается точно), скачать `.pln`, удалить.
+- **Импорт .pln** — загрузить план из MSFS 2020/2024 (или Little Navmap/SimBrief в формате MSFS) и пересчитать топливо/погоду.
+- В MSFS: World Map → Load/Save → Load → выбрать `.pln`. SID/STAR/заход выберите в EFB/МФД самолёта
+  под ВПП, которую предложил планнер (в бесплатной базе процедур нет).
 
 ## Возможности
 
@@ -36,7 +51,7 @@ raw.githubusercontent.com). Принудительно обновить: `npm ru
 - **Навлог** — путевые углы, дистанции, высоты, время/ETA, остаток топлива, вертикальный профиль.
 - **Чарты** — США: официальные PDF FAA d-TPP прямо в окне; весь мир: ChartFox, официальные AIP стран
   (в т.ч. АИП России ЦАИ), Eurocontrol EAD Basic — всё бесплатно.
-- **Экспорт** — строка маршрута, ICAO FPL, X-Plane `.fms`, MSFS `.pln`, текстовый OFP.
+- **Экспорт** — строка маршрута, ICAO FPL, X-Plane `.fms`, MSFS `.pln`, текстовый OFP; импорт `.pln`.
 
 ## Источники данных (бесплатные)
 
@@ -53,7 +68,9 @@ raw.githubusercontent.com). Принудительно обновить: `npm ru
 ## Структура
 
 ```
-server/   index.js (API), airports.js, navdata.js (fix/nav/awy/CIFP), router.js (A*), weather.js, charts.js
-public/   index.html, css/style.css, js/app.js, map.js, calc.js (профиль/топливо), metar.js, aircraft.js, export.js
-scripts/  fetch-data.js — загрузка открытых баз
+api/      index.js — вход serverless-функции Vercel
+server/   app.js (API), index.js (локальный запуск), airports.js, navdata.js (fix/nav/awy/CIFP), router.js (A*), weather.js, charts.js
+public/   index.html, css/style.css, js/app.js, map.js, calc.js (профиль/топливо), metar.js, aircraft.js, export.js, plans.js
+scripts/  fetch-data.js — обновление открытых баз в data/db
+data/db/  сжатые базы (OurAirports, X-Plane navdata GPL)
 ```

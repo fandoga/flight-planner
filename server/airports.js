@@ -1,6 +1,7 @@
 // База аэропортов OurAirports (public domain): аэропорты, ВПП, частоты
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 
 function parseCsvLine(line) {
   const out = [];
@@ -20,7 +21,9 @@ function parseCsvLine(line) {
 }
 
 function readCsv(file, onRow) {
-  const text = fs.readFileSync(file, 'utf8');
+  if (!fs.existsSync(file) && fs.existsSync(file + '.gz')) file += '.gz';
+  const buf = fs.readFileSync(file);
+  const text = (file.endsWith('.gz') ? zlib.gunzipSync(buf) : buf).toString('utf8');
   const lines = text.split(/\r?\n/);
   const head = parseCsvLine(lines[0]);
   const idx = Object.fromEntries(head.map((h, i) => [h, i]));

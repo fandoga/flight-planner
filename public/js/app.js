@@ -2,7 +2,8 @@ import { AIRCRAFT, findAircraft, PAX_MASS, BAG_MASS } from './aircraft.js';
 import { parseMetar, describeMetar, rankRunways } from './metar.js';
 import { computePlan, autoCruiseFl, cruiseTas, bearing, distNm, interpolate, fmtTime } from './calc.js';
 import { initMap, drawRoute } from './map.js';
-import { exportPlan } from './export.js';
+import { exportPlan, plnText } from './export.js';
+import { listPlans, savePlan, deletePlan, getPlan, parsePln, routeString } from './plans.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -12,7 +13,7 @@ const DEFAULTS = {
   dep: 'UUEE', arr: 'ULLI', altn: '', callsign: 'AFL001', etd: '', rules: 'I',
   acId: 'A20N', level: 'high',
   depRwy: null, arrRwy: null, sid: null, star: null, approach: null,
-  routeText: '', routeMode: 'auto',
+  routeText: '', routeMode: 'auto', fixedRoute: null, planId: null,
   ovr: { cruiseFl: null, cruiseSpd: null, windComp: null },
   isaDev: 0,
   load: { pax: null, bagsPerPax: BAG_MASS, cargo: 0 },
@@ -193,6 +194,7 @@ async function buildRoute(mode = S.routeMode, fit = true) {
     const depRwy = selectedRunway('dep')?.ident, arrRwy = selectedRunway('arr')?.ident;
     let r;
     if (mode === 'dct') r = { points: [], route: 'DCT', sid: null, star: null, airac: D.status?.airac };
+    else if (mode === 'fixed' && S.fixedRoute) r = S.fixedRoute;
     else {
       r = await api('/api/route', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -201,6 +203,7 @@ async function buildRoute(mode = S.routeMode, fit = true) {
     }
     if (seq !== routeSeq) return;
     D.route = r;
+    if (mode !== 'fixed') S.fixedRoute = null;
     if (mode !== 'text') S.routeText = r.route;
     $('routeText').value = S.routeText;
     const msgs = [];
@@ -338,11 +341,11 @@ function renderSelects() {
   const ap = arrApt() && D.procs[`${arrApt().icao}:${aRw || ''}`];
   const sidList = dp?.sid || [], starList = ap?.star || [];
   setOptions($('sid'), [
-    { value: '', label: D.route?.sid ? `Авто: ${D.route.sid.name}` : dp?.cifp ? 'Авто' : 'Нет CIFP — вектора/DCT' },
+    { value: '', label: D.route?.sid ? `Авто: ${D.route.sid.name}` : dp?.cifp ? 'Авто' : 'В MSFS (нет в базе)' },
     ...sidList.map((p) => ({ value: p.name, label: p.name })),
   ], S.sid || '');
   setOptions($('star'), [
-    { value: '', label: D.route?.star ? `Авто: ${D.route.star.name}` : ap?.cifp ? 'Авто' : 'Нет CIFP — вектора/DCT' },
+    { value: '', label: D.route?.star ? `Авто: ${D.route.star.name}` : ap?.cifp ? 'Авто' : 'В MSFS (нет в базе)' },
     ...starList.map((p) => ({ value: p.name, label: p.name })),
   ], S.star || '');
   const apps = approachOptions();
@@ -364,7 +367,7 @@ function renderSelects() {
   const dr = selectedRunway('dep');
   if (dr && !dr.ok) msgs.push(`<span class="warn">ВПП ${dr.ident}: ${esc(dr.reason)}</span>`);
   if (dr && dr.length && dr.length < ac.toRwy) msgs.push(`<span class="warn">Длина ВПП ${dr.ident} меньше потребной (${ac.toRwy} ft)</span>`);
-  if (!dp?.cifp) msgs.push('SID/STAR: в базе нет CIFP — положите данные X-Plane в data/navdata (см. README)');
+  if (!dp?.cifp) msgs.push('SID/STAR в бесплатной базе нет: после загрузки .pln выберите их в MSFS (EFB / МФД / FMC) под выбранную ВПП.');
   $('procMsg').innerHTML = msgs.join('<br>');
 }
 
@@ -571,6 +574,7 @@ async function setAirport(kind, code, rebuild = true) {
   if (kind === 'altn' && !code) { S.altn = ''; updateAll(false); return; }
   try {
     const a = await loadAirport(code);
+    if (kind !== 'altn' && S[kind] !== a.icao) S.planId = null;
     S[kind] = a.icao;
     input.value = a.icao;
     if (kind === 'dep') { S.depRwy = null; S.sid = null; }
@@ -746,9 +750,26 @@ function bind() {
   document.addEventListener('click', () => $('exportMenu').classList.remove('show'));
   $('exportMenu').addEventListener('click', (e) => {
     const k = e.target.dataset.export;
+    if (k === 'import') { $('plnFile').click(); return; }
     if (!k || !D.plan) return;
     const msg = exportPlan(k, collectExport());
     if (msg) toast(msg);
+  });
+
+  $('savePlanBtn').addEventListener('click', () => doSavePlan(true));
+  $('savePlan2').addEventListener('click', () => doSavePlan(false));
+  $('importPln').addEventListener('click', () => $('plnFile').click());
+  $('plnFile').addEventListener('change', (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) importPln(f); });
+  $('plansList').addEventListener('click', (e) => {
+    const t = e.target.closest('[data-plan-open], [data-plan-pln], [data-plan-del]');
+    if (!t) return;
+    if (t.dataset.planOpen) openPlan(t.dataset.planOpen);
+    if (t.dataset.planPln) { const p = getPlan(t.dataset.planPln); if (p) downloadPln(p); }
+    if (t.dataset.planDel && confirm('Удалить план?')) {
+      deletePlan(t.dataset.planDel);
+      if (S.planId === t.dataset.planDel) S.planId = null;
+      renderPlans();
+    }
   });
 
   $('chartClose').addEventListener('click', () => { $('chartModal').hidden = true; $('chartFrame').src = 'about:blank'; });
@@ -790,16 +811,108 @@ async function start() {
   if (innerWidth < 760) $('rightPanel').classList.add('collapsed');
   D.status = await api('/api/status').catch(() => null);
   renderLeftInfo();
+  renderPlans();
+  await loadFromState(false);
+}
+
+/** Загрузить аэропорты/процедуры/маршрут по текущему состоянию S */
+async function loadFromState(fit) {
   const mode = S.routeMode;
   const text = S.routeText;
+  $('aircraft').value = S.acId;
+  $('callsign').value = S.callsign;
+  $('etd').value = S.etd;
+  $('rules').value = S.rules;
+  $('isaDev').value = S.isaDev;
+  $('routeText').value = S.routeText;
+  document.querySelectorAll('#levelSeg button').forEach((b) => b.classList.toggle('on', b.dataset.level === S.level));
+  D.route = null;
   try {
     await Promise.all([S.dep && loadAirport(S.dep), S.arr && loadAirport(S.arr), S.altn && loadAirport(S.altn)]);
     $('dep').value = S.dep; $('arr').value = S.arr; $('altn').value = S.altn;
     if (arrApt()) D.alternates = await api(`/api/alternates/${arrApt().icao}?minRwy=${findAircraft(S.acId).ldgRwy}`).catch(() => []);
     await refreshProcs();
-    if (depApt() && arrApt()) { S.routeText = text; await buildRoute(mode); }
+    if (depApt() && arrApt()) { S.routeText = text; await buildRoute(mode, fit); }
   } catch (e) { toast(e.message); }
-  updateAll(false);
+  updateAll(fit);
+}
+
+// ---------------- сохранённые планы ----------------
+function planEntry() {
+  const x = collectExport();
+  const id = S.planId || `p${Date.now().toString(36)}`;
+  const { metarOverride, ...state } = structuredClone(S);
+  return {
+    id,
+    name: `${S.dep}–${S.arr}${S.callsign ? ' ' + S.callsign : ''}`,
+    saved: new Date().toISOString(),
+    summary: `${x.ac.icao} · ${Math.round(D.plan.dist)} nm · FL${x.fl} · ${fmtTime(D.plan.times.trip)} · ${fmtW(D.plan.fuel.block)} ${U()}`,
+    state: { ...state, planId: id, routeMode: 'fixed', fixedRoute: D.route },
+    pln: plnText(x),
+  };
+}
+
+function downloadPln(entry) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([entry.pln], { type: 'application/xml' }));
+  a.download = `${entry.state.dep}${entry.state.arr}.pln`;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+
+function doSavePlan(download) {
+  if (!D.plan || !D.route) { toast('Сначала постройте маршрут'); return; }
+  try {
+    const e = planEntry();
+    savePlan(e);
+    S.planId = e.id;
+    save();
+    renderPlans();
+    if (download) downloadPln(e);
+    toast(download ? 'План сохранён, .pln скачан' : 'План сохранён');
+  } catch (err) { toast(err.message); }
+}
+
+function renderPlans() {
+  const list = listPlans();
+  $('plansCount').textContent = list.length ? String(list.length) : '';
+  $('plansList').innerHTML = list.length ? list.map((p) => `
+    <div class="plan-item ${p.id === S.planId ? 'active' : ''}">
+      <div class="pi-main" data-plan-open="${p.id}" title="Открыть"><b>${esc(p.name)}</b><small>${esc(p.summary)} · ${new Date(p.saved).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</small></div>
+      <button data-plan-pln="${p.id}" title="Скачать для MSFS">.pln</button>
+      <button data-plan-del="${p.id}" title="Удалить">✕</button>
+    </div>`).join('') : '<div class="msg" style="margin-bottom:6px">Сохранённых планов пока нет</div>';
+}
+
+async function openPlan(id) {
+  const p = getPlan(id);
+  if (!p) return;
+  S = { ...structuredClone(DEFAULTS), ...structuredClone(p.state), metarOverride: S.metarOverride, units: S.units };
+  D.alternates = [];
+  D.charts = {};
+  renderPlans();
+  await loadFromState(true);
+  toast(`Открыт план ${p.name}`);
+}
+
+async function importPln(file) {
+  try {
+    const f = parsePln(await file.text());
+    const fixed = { points: f.points, route: routeString(f.points), sid: null, star: null, airac: D.status?.airac, note: 'Импортировано из MSFS .pln' };
+    const sid = f.points.find((p) => p.stage === 'SID'), star = f.points.find((p) => p.stage === 'STAR');
+    if (sid) fixed.sid = { name: sid.via };
+    if (star) fixed.star = { name: star.via };
+    Object.assign(S, {
+      dep: f.dep, arr: f.arr, altn: '', rules: f.rules, depRwy: f.depRwy, arrRwy: f.arrRwy, sid: null, star: null, approach: null,
+      routeMode: 'fixed', fixedRoute: fixed, routeText: fixed.route, planId: null,
+      ovr: { ...S.ovr, cruiseFl: f.fl },
+    });
+    D.alternates = [];
+    D.charts = {};
+    await loadFromState(true);
+    toast(`Импортирован план ${f.dep}–${f.arr} (${f.points.length} точек)`);
+  } catch (e) { toast(e.message); }
 }
 
 start();

@@ -22,6 +22,7 @@
     </div>
     <div class="chips" id="summary"></div>
     <div class="top-actions">
+      <button class="btn primary sm" id="savePlanBtn" title="Сохранить план (и скачать .pln для MSFS)">Сохранить</button>
       <div class="dropdown">
         <button class="btn ghost" id="exportBtn">Экспорт ▾</button>
         <div class="dropdown-menu" id="exportMenu">
@@ -29,6 +30,7 @@
           <button data-export="fpl">План полёта ICAO (.txt)</button>
           <button data-export="fms">X-Plane 11/12 (.fms)</button>
           <button data-export="pln">MSFS 2020/2024 (.pln)</button>
+          <button data-export="import">Импорт .pln из MSFS…</button>
           <button data-export="ofp">OFP — брифинг (.txt)</button>
         </div>
       </div>
@@ -124,6 +126,17 @@
         </div>
         <label class="field"><span>Заход</span><select id="approach"></select></label>
         <div class="msg" id="procMsg"></div>
+      </section>
+
+      <section class="card">
+        <h3>Мои планы <span class="badge" id="plansCount"></span></h3>
+        <div class="row-btns">
+          <button class="btn" id="savePlan2">Сохранить текущий</button>
+          <button class="btn" id="importPln">Импорт .pln</button>
+          <input type="file" id="plnFile" accept=".pln,.xml" hidden>
+        </div>
+        <div id="plansList"></div>
+        <div class="hint">Планы хранятся в этом браузере. Кнопка «.pln» скачивает файл для MSFS 2020/2024: World Map → Load/Save → Load.</div>
       </section>
 
       <section class="card">

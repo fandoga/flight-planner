@@ -5,14 +5,15 @@
   "type": "module",
   "main": "server/index.js",
   "scripts": {
-    "setup": "node scripts/fetch-data.js",
     "start": "node server/index.js",
-    "dev": "node --watch server/index.js"
+    "dev": "node --watch server/index.js",
+    "update-data": "node scripts/fetch-data.js"
   },
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
-    "express": "^4.21.2",
-    "leaflet": "^1.9.4"
+    "express": "^4.21.2"
   },
   "license": "MIT"
 }

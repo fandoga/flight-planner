@@ -1,4 +1,4 @@
 node_modules/
-data/raw/
+.vercel/
 data/navdata/*
 !data/navdata/README.md
