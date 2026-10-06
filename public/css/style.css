@@ -30,7 +30,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 #map { position: fixed; inset: 0; background: #0a0d14; z-index: 0; }
 /* Монохромная карта */
-.leaflet-tile-pane { filter: grayscale(1) brightness(0.85) contrast(1.1); }
+.bm-esri .leaflet-tile-pane { filter: grayscale(1) brightness(0.95) contrast(1.05); }
+.bm-osm .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) grayscale(1) brightness(0.75) contrast(0.95); }
+#basemapSel { padding: 2px 6px; font-size: 11px; }
 .leaflet-container { background: #0a0d14; font: inherit; }
 .leaflet-control-attribution { background: rgba(7, 11, 22, 0.7) !important; color: var(--dim) !important; font-size: 10px; }
 .leaflet-control-attribution a { color: var(--muted) !important; }

@@ -10,10 +10,7 @@ export function initMap(opts = {}) {
   onAirportClick = opts.onAirportClick || onAirportClick;
   map = L.map('map', { zoomControl: true, worldCopyJump: true, minZoom: 2, preferCanvas: true, attributionControl: true })
     .setView([55, 50], 4);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    subdomains: 'abcd', maxZoom: 18,
-    attribution: '&copy; OpenStreetMap &copy; CARTO | Навданные: OurAirports, X-Plane/FlightGear (GPL)',
-  }).addTo(map);
+  setupBasemaps();
   awyLayer = L.layerGroup().addTo(map);
   aptLayer = L.layerGroup().addTo(map);
   navLayer = L.layerGroup().addTo(map);
@@ -150,6 +147,74 @@ export function drawRoute({ dep, arr, altn, points, log, depRwy, arrRwy }, fit =
     const right = document.getElementById('rightPanel').classList.contains('collapsed') ? 40 : 440;
     map.fitBounds(b, { paddingTopLeft: [left, 90], paddingBottomRight: [right, 50], maxZoom: 9 });
   }
+}
+
+// Подложки без API-ключа. Esri Dark Gray — тёмно-серая «из коробки»,
+// OSM — стандартная, затемняется и обесцвечивается CSS-фильтром.
+const NAV_ATTR = ' | Навданные: OurAirports, X-Plane/FlightGear (GPL)';
+const BASEMAPS = {
+  esri: {
+    name: 'Тёмная (Esri)', cls: 'bm-esri',
+    layers: () => [
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+        maxNativeZoom: 16, maxZoom: 18, attribution: 'Tiles &copy; Esri — Esri, DeLorme, NAVTEQ' + NAV_ATTR,
+      }),
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
+        maxNativeZoom: 16, maxZoom: 18, opacity: 0.8,
+      }),
+    ],
+  },
+  osm: {
+    name: 'OpenStreetMap (тёмная)', cls: 'bm-osm',
+    layers: () => [
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 18, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' + NAV_ATTR,
+      }),
+    ],
+  },
+};
+let baseGroup = null;
+let baseKey = null;
+
+function setBasemap(key, auto = false) {
+  if (!BASEMAPS[key]) key = 'esri';
+  if (baseGroup) map.removeLayer(baseGroup);
+  baseKey = key;
+  const bm = BASEMAPS[key];
+  const layers = bm.layers();
+  baseGroup = L.layerGroup(layers).addTo(map);
+  baseGroup.eachLayer((l) => l.bringToBack && l.bringToBack());
+  const c = map.getContainer();
+  Object.values(BASEMAPS).forEach((b) => c.classList.remove(b.cls));
+  c.classList.add(bm.cls);
+  const sel = document.getElementById('basemapSel');
+  if (sel) sel.value = key;
+  try { if (!auto) localStorage.setItem('fp-basemap', key); } catch { /* пусто */ }
+  // автопереключение, если подложка не грузится
+  let ok = 0, fail = 0;
+  layers[0].on('tileload', () => { ok++; });
+  layers[0].on('tileerror', () => {
+    fail++;
+    if (fail >= 6 && ok === 0 && baseKey === key && !auto) {
+      const other = key === 'esri' ? 'osm' : 'esri';
+      setBasemap(other, true);
+    }
+  });
+}
+
+function setupBasemaps() {
+  let saved = 'esri';
+  try { saved = localStorage.getItem('fp-basemap') || 'esri'; } catch { /* пусто */ }
+  const ctrl = document.getElementById('layerCtrl');
+  if (ctrl && !document.getElementById('basemapSel')) {
+    const sel = document.createElement('select');
+    sel.id = 'basemapSel';
+    sel.className = 'select-sm';
+    sel.innerHTML = Object.entries(BASEMAPS).map(([k, b]) => `<option value="${k}">${b.name}</option>`).join('');
+    sel.addEventListener('change', () => setBasemap(sel.value));
+    ctrl.prepend(sel);
+  }
+  setBasemap(saved);
 }
 
 export function invalidate() { map && map.invalidateSize(); }

@@ -33,7 +33,7 @@ npm start          # http://localhost:3000  (порт: PORT=8080 npm start)
 
 ## Возможности
 
-- **Карта** — Leaflet + CARTO Dark (в оттенках серого), слои аэропортов, VOR/NDB/точек и трасс,
+- **Карта** — Leaflet + Esri Dark Gray или OpenStreetMap в тёмно-серых тонах (без API-ключей), слои аэропортов, VOR/NDB/точек и трасс,
   маршрут по ортодромии, T/C и T/D на карте.
 - **Рейс** — ICAO вылета/прилёта/запасного с автодополнением (ICAO, IATA, название, город),
   позывной, время вылета UTC, IFR/VFR.
@@ -63,7 +63,7 @@ npm start          # http://localhost:3000  (порт: PORT=8080 npm start)
 | METAR/TAF | aviationweather.gov, VATSIM, NOAA | открытые |
 | Ветер на высотах | [Open-Meteo](https://open-meteo.com/) | CC BY 4.0, некоммерческое |
 | Чарты | FAA d-TPP, ChartFox, AIP стран | бесплатно |
-| Подложка | © OpenStreetMap, © CARTO | ODbL / CARTO |
+| Подложка | Esri World Dark Gray Canvas / © OpenStreetMap | Esri / ODbL |
 
 ## Структура
 
